@@ -19,3 +19,4 @@ doc
 docu
 .sobelow
 node_modules/
+.elixir_ls
