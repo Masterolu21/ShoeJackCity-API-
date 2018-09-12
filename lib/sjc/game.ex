@@ -143,18 +143,17 @@ defmodule Sjc.Game do
   # Adds player if it doesn't exist yet.
   def handle_call({:add_player, attrs}, _from, state) do
     player = struct(Player, attrs)
+    new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
 
-    case Enum.any?(state.players, &(&1.id == attrs.id)) do
-      true ->
+    cond do
+      Enum.any?(state.players, &(&1.id == attrs.id)) ->
         {:reply, {:error, :already_added}, state, timeout()}
 
-      false ->
-        {
-          :reply,
-          {:ok, :added},
-          update_in(state, [:players], &List.insert_at(&1, -1, player)),
-          timeout()
-        }
+      length(new_state.players) > 1_000 ->
+        {:reply, {:error, :max_length}, state, timeout()}
+
+      true ->
+        {:reply, {:ok, :added}, new_state, timeout()}
     end
   end
 

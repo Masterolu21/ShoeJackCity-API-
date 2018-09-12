@@ -35,6 +35,7 @@ defmodule SjcWeb.GameResolver do
   def add_player(_root, args, _res) do
     case Game.add_player(args.name, args.attributes) do
       {:ok, :added} -> {:ok, Game.state(args.name)}
+      {:error, :max_length} -> {:error, "max length"}
       {:error, :already_added} -> {:error, "already added"}
     end
   end

@@ -149,7 +149,6 @@ defmodule Sjc.GameTest do
       assert length(Game.state("game_11").players) == 1
     end
 
-    @tag :only
     test "backup gets state of current game if it crashes" do
       {:ok, pid} = GameSupervisor.start_child("game_12")
       Game.shift_automatically("game_12")
@@ -163,6 +162,17 @@ defmodule Sjc.GameTest do
 
       # Process should be restarted but the old pid
       assert length(Game.state("game_12").players) == 1
+    end
+
+    @tag :only
+    test "allows only 1000 players per game" do
+      {:ok, _pid} = GameSupervisor.start_child("game_13")
+
+      IO.inspect(build(:player))
+
+      Enum.each(1..1_000, fn _ -> Game.add_player("game_13", build(:player)) end)
+
+      assert {:error, :max_length} = Game.add_player("game_13", build(:player))
     end
   end
 end
