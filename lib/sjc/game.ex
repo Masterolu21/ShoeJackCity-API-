@@ -12,6 +12,11 @@ defmodule Sjc.Game do
 
   # API
 
+  ## TODO: BATTLE PHASE - WHEN A NEXT ROUND IS CALLED START RUNNING THE TIMER FOR 60 SECONDS
+  ## TODO: BATTLE PHASE - EXECUTE ALL ACTIONS FROM PLAYERS
+  ## TODO: STANDBY PHASE - APPLY STATUS EFFECTS / REMOVE DEAD PLAYERS / 20% CHANCE MINI WINDOW
+  ## TODO: POINTS FOR DEFEATED PLAYERS: 10 * NUMBER OF ROUNDS LASTED
+
   # TODO: Check what can stay in the process and what should be in the database
   # we can pull a reference and just use the information from the database in the process
   def start_link(name) do
@@ -38,8 +43,9 @@ defmodule Sjc.Game do
     GenServer.cast(via(name), {:remove_player, identifier})
   end
 
-  def add_round_actions(name, actions) do
-    GenServer.cast(via(name), {:add_actions, actions})
+  # Called through the websocket each time a person changes their action
+  def add_action(name, action) do
+    GenServer.cast(via(name), {:add_action, action})
   end
 
   def state(name) do
@@ -97,8 +103,6 @@ defmodule Sjc.Game do
       state
       |> put_in([:round, :number], new_round)
       |> put_in([:time_of_round], Timex.now())
-      # Remove players that have less than 0 HP.
-      |> remove_dead_players()
 
     # We send a signal to the channel because a round has just passed
     SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
@@ -112,15 +116,17 @@ defmodule Sjc.Game do
     {:noreply, put_in(state.players, players), timeout()}
   end
 
-  def handle_cast({:add_actions, actions}, state) when is_list(actions) do
-    # 'actions' should come in a map with some keys, :from, :to, :amount, :type
-    # where :type should be one of "shield", "damage".
-    players = run_actions(actions, state)
+  # 'action' / 'actions' should come in a map with some keys, :from, :amount, :type
+  # where :type should be one of "shield", "damage".
+  def handle_cast({:add_action, actions}, state) when is_list(actions) do
+    new_state = put_in(state, [:actions], actions ++ state.actions)
 
-    new_state =
-      state
-      |> put_in([:players], players)
-      |> put_in([:actions], [])
+    {:noreply, new_state, timeout()}
+  end
+
+  def handle_cast({:add_action, action}, state) when is_map(action) do
+    # TODO: CHECK IF ANY VALIDATION NEEDS TO BE DONE HERE
+    new_state = put_in(state, [:actions], [action] ++ state.actions)
 
     {:noreply, new_state, timeout()}
   end
@@ -169,6 +175,8 @@ defmodule Sjc.Game do
     {:reply, will_shift?, %{state | shift_automatically: will_shift?}, timeout()}
   end
 
+  # This is mainly for players that join or refresh the window or whatever so we know how
+  # much time is left in the current round.
   def handle_call(:time_of_round_left, _from, state) do
     remaining = Timex.diff(Timex.now(), state.time_of_round, :seconds)
 
@@ -183,12 +191,35 @@ defmodule Sjc.Game do
     {:stop, reason, state}
   end
 
-  def handle_info(:round_timeout, state) do
-    # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
-    # 'Process.send_after/3' when the function is called manually.
-    if state.shift_automatically, do: schedule_round_timeout(state.name)
+  def handle_info(:round_timeout, %{players: players, actions: actions} = state) do
+    # @dev We get the ids of the players that are in the game, we remove the id of the
+    # person from the action for bombs and use the same id for shields
 
-    handle_cast(:next_round, state)
+    updated_players =
+      actions
+      |> Enum.reduce(players, fn action, acc ->
+        ids = players |> Enum.map(& &1.id) |> Enum.reject(&(&1 == action["from"]))
+
+        target =
+          case action["type"] == "damage" do
+            true -> Enum.random(ids)
+            false -> action["from"]
+          end
+
+        player_index = Enum.find_index(players, &(&1.id == target))
+
+        do_type(acc, action["type"], player_index, action["amount"])
+      end)
+      |> Enum.map(&struct(Player, &1))
+
+    Process.send_after(get_pid(state.name), :standby_phase, 5_000)
+
+    {:noreply, put_in(state, [:players], updated_players), timeout()}
+  end
+
+  def handle_info(:standby_phase, state) do
+    # TODO: CHECK WHAT WE CAN DO HERE AFTER REMOVING DEAD PLAYERS
+    remove_dead_players(state)
   end
 
   # Timeout is just the time a GenServer (Lobby process) can stay alive without
@@ -202,17 +233,7 @@ defmodule Sjc.Game do
     Application.fetch_env!(:sjc, :round_timeout)
   end
 
-  defp run_actions(actions, %{players: players}) do
-    actions
-    |> Enum.reduce(players, fn action, acc ->
-      player_index = Enum.find_index(players, &(&1.id == action["to"]))
-
-      do_type(acc, action["type"], player_index, action["amount"])
-    end)
-    |> Enum.map(&struct(Player, &1))
-  end
-
-  # TODO: Players have shield points too, we're only removing health_points here for now.
+  # TODO: Players have shields, they remove a % from bomb's dmg, we're only removing health_points here for now.
   # TODO: Shields should only reduce damage from bombs
   defp do_type(players, "damage", index, amount) do
     update_in(players, [Access.at(index), :health_points], &(&1 - amount))
@@ -234,7 +255,11 @@ defmodule Sjc.Game do
 
     Enum.reject(state.players, &(&1.health_points <= 0))
 
-    put_in(state, [:players], new_players)
+    # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
+    # 'Process.send_after/3' when the function is called manually.
+    if state.shift_automatically, do: schedule_round_timeout(state.name)
+
+    {:noreply, put_in(state, [:players], new_players), timeout()}
   end
 
   def get_pid(name) do

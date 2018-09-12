@@ -95,7 +95,7 @@ defmodule Sjc.GameTest do
     end
 
     test "should run given actions" do
-      {:ok, _} = GameSupervisor.start_child("game_10")
+      {:ok, pid} = GameSupervisor.start_child("game_10")
       Game.shift_automatically("game_10")
 
       # This way we can test adding by a list and we have the IDS we need.
@@ -115,7 +115,9 @@ defmodule Sjc.GameTest do
         %{"from" => pp.id, "to" => p.id, "type" => "damage", "amount" => 4.0}
       ]
 
-      Game.add_round_actions("game_10", actions)
+      Game.add_action("game_10", actions)
+
+      Process.send(pid, :round_timeout, [:nosuspend])
 
       updated_players = Game.state("game_10").players
 
@@ -128,8 +130,9 @@ defmodule Sjc.GameTest do
       assert 46.0 in hps && 45.2 in hps
     end
 
+    @tag :only
     test "remove dead players" do
-      {:ok, _} = GameSupervisor.start_child("game_11")
+      {:ok, pid} = GameSupervisor.start_child("game_11")
       Game.shift_automatically("game_11")
       player = build(:player)
       player_2 = build(:player)
@@ -141,34 +144,17 @@ defmodule Sjc.GameTest do
       # Player 1 kills player 2
       action = [%{"from" => player.id, "to" => player_2.id, "type" => "damage", "amount" => 51.0}]
 
-      Game.add_round_actions("game_11", action)
+      Game.add_action("game_11", action)
 
-      # Manually trigger the next round
-      Game.next_round("game_11")
+      # Manually running actions
+      Process.send(pid, :round_timeout, [:nosuspend])
+      Process.send(pid, :standby_phase, [:nosuspend])
 
       assert length(Game.state("game_11").players) == 1
     end
 
-    test "backup gets state of current game if it crashes" do
-      {:ok, pid} = GameSupervisor.start_child("game_12")
-      Game.shift_automatically("game_12")
-
-      # Adding an invalid player will crash the process when the next round is triggered
-      Game.add_player("game_12", [build(:player)])
-
-      Process.exit(pid, :die)
-
-      :timer.sleep(1000)
-
-      # Process should be restarted but the old pid
-      assert length(Game.state("game_12").players) == 1
-    end
-
-    @tag :only
     test "allows only 1000 players per game" do
       {:ok, _pid} = GameSupervisor.start_child("game_13")
-
-      IO.inspect(build(:player))
 
       Enum.each(1..1_000, fn _ -> Game.add_player("game_13", build(:player)) end)
 
