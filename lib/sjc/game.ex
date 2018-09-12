@@ -21,9 +21,6 @@ defmodule Sjc.Game do
       },
       players: [],
       actions: [],
-      special_rules: %{
-        care_package: 2
-      },
       name: name,
       shift_automatically: true,
       time_of_round: Timex.now(),
@@ -94,14 +91,7 @@ defmodule Sjc.Game do
   def terminate(_reason, state), do: GameBackup.save_state(state.name, state)
 
   def handle_cast(:next_round, %{round: %{number: round_num}, name: name} = state) do
-    # TODO: Add small health regen for everyone still alive
-
     new_round = round_num + 1
-    # Each N amount of rounds (Specified in state), drop a 'care package'.
-    case rem(new_round, state.special_rules.care_package) do
-      0 -> Process.send(get_pid(name), :care_package, [:nosuspend])
-      _ -> :ok
-    end
 
     new_state =
       state
@@ -194,13 +184,6 @@ defmodule Sjc.Game do
     {:stop, reason, state}
   end
 
-  def handle_info(:care_package, state) do
-    # TODO: Implementation
-    Logger.debug("[RECEIVED] CARE PACKAGE FROM " <> state.name)
-
-    {:noreply, state, timeout()}
-  end
-
   def handle_info(:round_timeout, state) do
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
     # 'Process.send_after/3' when the function is called manually.
@@ -231,6 +214,7 @@ defmodule Sjc.Game do
   end
 
   # TODO: Players have shield points too, we're only removing health_points here for now.
+  # TODO: Shields should only reduce damage from bombs
   defp do_type(players, "damage", index, amount) do
     update_in(players, [Access.at(index), :health_points], &(&1 - amount))
   end
@@ -244,12 +228,12 @@ defmodule Sjc.Game do
   end
 
   defp remove_dead_players(state) do
-    new_players = 
+    new_players =
       state.players
       |> Enum.reject(&(&1.health_points <= 0))
       |> Enum.reject(fn player -> nil in Map.values(player) end)
 
-      Enum.reject(state.players, &(&1.health_points <= 0))
+    Enum.reject(state.players, &(&1.health_points <= 0))
 
     put_in(state, [:players], new_players)
   end

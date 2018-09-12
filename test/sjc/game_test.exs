@@ -3,8 +3,6 @@ defmodule Sjc.GameTest do
 
   use Sjc.DataCase
 
-  import ExUnit.CaptureLog
-
   alias Sjc.Supervisors.GameSupervisor
   alias Sjc.Game
 
@@ -52,15 +50,6 @@ defmodule Sjc.GameTest do
 
       assert {:ok, :added} = Game.add_player("game_5", attributes)
       assert {:error, :already_added} = Game.add_player("game_5", attributes)
-    end
-
-    test "sends :care_package message to process each N amount of rounds" do
-      # Round numbers are specified in the process state
-      {:ok, _} = GameSupervisor.start_child("game_6")
-
-      fun = fn -> Enum.map(1..2, fn _ -> Game.next_round("game_6") end) end
-
-      assert capture_log(fun) =~ "[RECEIVED] CARE PACKAGE"
     end
 
     test "removes player from game by identifier", %{player_attrs: attributes} do
@@ -164,7 +153,7 @@ defmodule Sjc.GameTest do
     test "backup gets state of current game if it crashes" do
       {:ok, pid} = GameSupervisor.start_child("game_12")
       Game.shift_automatically("game_12")
-      
+
       # Adding an invalid player will crash the process when the next round is triggered
       Game.add_player("game_12", [build(:player)])
 
