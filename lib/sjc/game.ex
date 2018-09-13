@@ -99,6 +99,8 @@ defmodule Sjc.Game do
   def handle_cast(:next_round, %{round: %{number: round_num}, name: name} = state) do
     new_round = round_num + 1
 
+    # TODO: REMOVE SHIELDS FROM EVERY USER BEFORE NEXT ROUND BEGINS
+
     new_state =
       state
       |> put_in([:round, :number], new_round)
@@ -195,11 +197,16 @@ defmodule Sjc.Game do
     # @dev We get the ids of the players that are in the game, we remove the id of the
     # person from the action for bombs and use the same id for shields
 
+    shields = Enum.filter(actions, &(&1["type"] == "shield"))
+    bombs = Enum.filter(actions, &(&1["type"] == "damage"))
+
     updated_players =
-      actions
+      (shields ++ bombs)
       |> Enum.reduce(players, fn action, acc ->
         ids = players |> Enum.map(& &1.id) |> Enum.reject(&(&1 == action["from"]))
 
+        # If 'type' is a bomb then we select a random ID except the user
+        # If shield then the target is the user itself.
         target =
           case action["type"] == "damage" do
             true -> Enum.random(ids)
@@ -208,7 +215,7 @@ defmodule Sjc.Game do
 
         player_index = Enum.find_index(players, &(&1.id == target))
 
-        do_type(acc, action["type"], player_index, action["amount"])
+        do_action(acc, action["type"], player_index, action["amount"])
       end)
       |> Enum.map(&struct(Player, &1))
 
@@ -218,7 +225,7 @@ defmodule Sjc.Game do
   end
 
   def handle_info(:standby_phase, state) do
-    # TODO: CHECK WHAT WE CAN DO HERE AFTER REMOVING DEAD PLAYERS
+    # TODO: CHECK WHAT WE CAN DO HERE AFTER OR BEFORE REMOVING DEAD PLAYERS
     remove_dead_players(state)
   end
 
@@ -233,24 +240,31 @@ defmodule Sjc.Game do
     Application.fetch_env!(:sjc, :round_timeout)
   end
 
-  # TODO: Players have shields, they remove a % from bomb's dmg, we're only removing health_points here for now.
-  # TODO: Shields should only reduce damage from bombs
-  defp do_type(players, "damage", index, amount) do
-    update_in(players, [Access.at(index), :health_points], &(&1 - amount))
+  defp do_action(players, "damage", index, amount) do
+    # Check if user has a shield active
+    shield_amount = get_in(players, [Access.at(index), :shield_points])
+    damage_after_shield = amount * shield_amount / 100
+    final_damage_taken = Kernel.round(amount - damage_after_shield)
+
+    update_in(players, [Access.at(index), :health_points], &(&1 - final_damage_taken))
   end
 
-  defp do_type(players, "shield", index, amount) do
+  # Amount in shield should be a percentage from the damage to be removed.
+  defp do_action(players, "shield", index, amount) do
     update_in(players, [Access.at(index), :shield_points], &(&1 + amount))
   end
 
-  defp do_type(players, _type, _index, _amount) do
+  defp do_action(players, _type, _index, _amount) do
     players
   end
 
   defp remove_dead_players(state) do
+    # Since we're representing life as decimal points (Maybe should change to integer)
+    # We're going to remove players with less than 1 of HP because anything above 0 but below 1 would be
+    # true if we remove players with less than 0 of HP.
     new_players =
       state.players
-      |> Enum.reject(&(&1.health_points <= 0))
+      |> Enum.reject(&(&1.health_points <= 1))
       |> Enum.reject(fn player -> nil in Map.values(player) end)
 
     Enum.reject(state.players, &(&1.health_points <= 0))

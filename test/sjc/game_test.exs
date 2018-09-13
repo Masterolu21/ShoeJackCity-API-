@@ -109,10 +109,8 @@ defmodule Sjc.GameTest do
       players = Game.state("game_10").players
 
       actions = [
-        %{"from" => p.id, "to" => pp.id, "type" => "damage", "amount" => 4.8},
-        %{"from" => pp.id, "to" => pp.id, "type" => "shield", "amount" => 3.0},
-        %{"from" => p.id, "to" => p.id, "type" => "shield", "amount" => 5.0},
-        %{"from" => pp.id, "to" => p.id, "type" => "damage", "amount" => 4.0}
+        %{"from" => p.id, "to" => pp.id, "type" => "damage", "amount" => 4},
+        %{"from" => pp.id, "to" => p.id, "type" => "damage", "amount" => 12}
       ]
 
       Game.add_action("game_10", actions)
@@ -127,10 +125,9 @@ defmodule Sjc.GameTest do
 
       hps = Enum.map(updated_players, & &1.health_points)
 
-      assert 46.0 in hps && 45.2 in hps
+      assert 46 in hps && 38 in hps
     end
 
-    @tag :only
     test "remove dead players" do
       {:ok, pid} = GameSupervisor.start_child("game_11")
       Game.shift_automatically("game_11")
@@ -142,7 +139,7 @@ defmodule Sjc.GameTest do
       assert length(Game.state("game_11").players) == 2
 
       # Player 1 kills player 2
-      action = [%{"from" => player.id, "to" => player_2.id, "type" => "damage", "amount" => 51.0}]
+      action = [%{"from" => player.id, "type" => "damage", "amount" => 51}]
 
       Game.add_action("game_11", action)
 
@@ -155,10 +152,39 @@ defmodule Sjc.GameTest do
 
     test "allows only 1000 players per game" do
       {:ok, _pid} = GameSupervisor.start_child("game_13")
+      Game.shift_automatically("game_13")
 
       Enum.each(1..1_000, fn _ -> Game.add_player("game_13", build(:player)) end)
 
       assert {:error, :max_length} = Game.add_player("game_13", build(:player))
+    end
+
+    @tag :only
+    test "shields should be applied first and damage reduced" do
+      {:ok, pid} = GameSupervisor.start_child("game_14")
+      Game.shift_automatically("game_14")
+      p = build(:player)
+      pp = build(:player)
+
+      Game.add_player("game_14", [p, pp])
+
+      # 14% of 40 is 5.6, final damage to PP should be 34.4
+      actions = [
+        %{"from" => p.id, "type" => "damage", "amount" => 40},
+        %{"from" => pp.id, "type" => "shield", "amount" => 14}
+      ]
+
+      Game.add_action("game_14", actions)
+
+      Process.send(pid, :round_timeout, [:nosuspend])
+
+      # There are no dead players at this stage
+
+      players = Game.state("game_14").players
+      hps = Enum.map(players, & &1.health_points)
+
+      # Hp of attacked user is 15.6, we're rounding to the nearest integer = 16
+      assert 16 in hps
     end
   end
 end
