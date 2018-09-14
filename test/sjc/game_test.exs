@@ -159,7 +159,6 @@ defmodule Sjc.GameTest do
       assert {:error, :max_length} = Game.add_player("game_13", build(:player))
     end
 
-    @tag :only
     test "shields should be applied first and damage reduced" do
       {:ok, pid} = GameSupervisor.start_child("game_14")
       Game.shift_automatically("game_14")
@@ -185,6 +184,36 @@ defmodule Sjc.GameTest do
 
       # Hp of attacked user is 15.6, we're rounding to the nearest integer = 16
       assert 16 in hps
+    end
+
+    @tag :only
+    test "removes shields from every player alive" do
+      {:ok, pid} = GameSupervisor.start_child("game_15")
+      Game.shift_automatically("game_15")
+      p = build(:player)
+      pp = build(:player)
+      ppp = build(:player)
+
+      get_shields = fn -> Enum.map(Game.state("game_15").players, & &1.shield_points) end
+
+      Game.add_player("game_15", [p, pp, ppp])
+
+      actions = [
+        %{"from" => p.id, "type" => "shield", "amount" => 16},
+        %{"from" => pp.id, "type" => "shield", "amount" => 18},
+        %{"from" => ppp.id, "type" => "shield", "amount" => 31}
+      ]
+
+      Game.add_action("game_15", actions)
+
+      Process.send(pid, :round_timeout, [:nosuspend])
+
+      assert get_shields.() == [16, 18, 31]
+
+      Process.send(pid, :standby_phase, [:nosuspend])
+
+      # Shields should be removed at this point
+      assert get_shields.() == [0, 0, 0]
     end
   end
 end

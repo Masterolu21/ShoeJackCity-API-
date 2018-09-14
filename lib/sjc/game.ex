@@ -99,12 +99,11 @@ defmodule Sjc.Game do
   def handle_cast(:next_round, %{round: %{number: round_num}, name: name} = state) do
     new_round = round_num + 1
 
-    # TODO: REMOVE SHIELDS FROM EVERY USER BEFORE NEXT ROUND BEGINS
-
     new_state =
       state
       |> put_in([:round, :number], new_round)
       |> put_in([:time_of_round], Timex.now())
+      |> update_in([:players, Access.all()], &Map.put(&1, :shield_points, 0))
 
     # We send a signal to the channel because a round has just passed
     SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
@@ -121,6 +120,7 @@ defmodule Sjc.Game do
   # 'action' / 'actions' should come in a map with some keys, :from, :amount, :type
   # where :type should be one of "shield", "damage".
   def handle_cast({:add_action, actions}, state) when is_list(actions) do
+    # TODO: MAYBE VERIFY THAT THE PLAYER IN "FROM" KEY EXISTS IN THE GAME
     new_state = put_in(state, [:actions], actions ++ state.actions)
 
     {:noreply, new_state, timeout()}
@@ -273,7 +273,9 @@ defmodule Sjc.Game do
     # 'Process.send_after/3' when the function is called manually.
     if state.shift_automatically, do: schedule_round_timeout(state.name)
 
-    {:noreply, put_in(state, [:players], new_players), timeout()}
+    handle_cast(:next_round, put_in(state, [:players], new_players))
+
+    # {:noreply, put_in(state, [:players], new_players), timeout()}
   end
 
   def get_pid(name) do
