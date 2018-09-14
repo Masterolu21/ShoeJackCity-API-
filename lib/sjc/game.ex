@@ -103,6 +103,7 @@ defmodule Sjc.Game do
       state
       |> put_in([:round, :number], new_round)
       |> put_in([:time_of_round], Timex.now())
+      |> put_in([:actions], [])
       |> update_in([:players, Access.all()], &Map.put(&1, :shield_points, 0))
 
     # We send a signal to the channel because a round has just passed
@@ -119,18 +120,33 @@ defmodule Sjc.Game do
 
   # 'action' / 'actions' should come in a map with some keys, :from, :amount, :type
   # where :type should be one of "shield", "damage".
-  def handle_cast({:add_action, actions}, state) when is_list(actions) do
+  def handle_cast({:add_action, actions}, %{players: players} = state) when is_list(actions) do
     # TODO: MAYBE VERIFY THAT THE PLAYER IN "FROM" KEY EXISTS IN THE GAME
-    new_state = put_in(state, [:actions], actions ++ state.actions)
+    ids = Enum.map(players, & &1.id)
+
+    # Only add actions from IDs that are currently in the game.
+    new_actions =
+      Enum.reduce(actions, [], fn action, acc ->
+        case action["from"] in ids do
+          true -> acc ++ [action]
+          false -> acc
+        end
+      end)
+
+    new_state = put_in(state, [:actions], new_actions ++ state.actions)
 
     {:noreply, new_state, timeout()}
   end
 
-  def handle_cast({:add_action, action}, state) when is_map(action) do
+  def handle_cast({:add_action, action}, %{players: players} = state) when is_map(action) do
     # TODO: CHECK IF ANY VALIDATION NEEDS TO BE DONE HERE
+    ids = Enum.map(players, & &1.id)
     new_state = put_in(state, [:actions], [action] ++ state.actions)
 
-    {:noreply, new_state, timeout()}
+    case action["from"] in ids do
+      true -> {:noreply, new_state, timeout()}
+      false -> {:noreply, new_state, timeout()}
+    end
   end
 
   # Returns the whole process state

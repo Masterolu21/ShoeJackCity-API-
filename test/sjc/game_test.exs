@@ -186,7 +186,6 @@ defmodule Sjc.GameTest do
       assert 16 in hps
     end
 
-    @tag :only
     test "removes shields from every player alive" do
       {:ok, pid} = GameSupervisor.start_child("game_15")
       Game.shift_automatically("game_15")
@@ -214,6 +213,45 @@ defmodule Sjc.GameTest do
 
       # Shields should be removed at this point
       assert get_shields.() == [0, 0, 0]
+    end
+
+    @tag :only
+    test "should remove actions after the round" do
+      {:ok, pid} = GameSupervisor.start_child("game_16")
+      Game.shift_automatically("game_16")
+      p = build(:player)
+      pp = build(:player)
+      ppp = build(:player)
+
+      Game.add_player("game_16", [p, pp, ppp])
+
+      actions = [
+        %{"from" => p.id, "type" => "shield", "amount" => 16},
+        %{"from" => pp.id, "type" => "shield", "amount" => 18},
+        %{"from" => ppp.id, "type" => "shield", "amount" => 31}
+      ]
+
+      Game.add_action("game_16", actions)
+
+      game_state = fn -> Game.state("game_16") end
+
+      assert length(game_state.().actions) == 3
+
+      Process.send(pid, :round_timeout, [:nosuspend])
+      Process.send(pid, :standby_phase, [:nosuspend])
+
+      assert length(game_state.().actions) == 0
+    end
+
+    test "should not add actions if the user isn't in the game" do
+      {:ok, _pid} = GameSupervisor.start_child("game_17")
+      Game.shift_automatically("game_17")
+
+      action = [%{"from" => 123, "type" => "shield", "amount" => 16}]
+
+      Game.add_action("game_17", action)
+
+      assert length(Game.state("game_17").actions) == 0
     end
   end
 end
