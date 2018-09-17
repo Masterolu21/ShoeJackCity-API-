@@ -7,15 +7,5 @@ defmodule SjcWeb.Router do
 
   scope "/api/v1" do
     pipe_through(:api)
-
-    forward("/", Absinthe.Plug, schema: SjcWeb.Schema)
   end
-
-  forward(
-    "/graph",
-    Absinthe.Plug.GraphiQL,
-    schema: SjcWeb.Schema,
-    interface: :simple,
-    context: %{pubsub: SjcWeb.Endpoint}
-  )
 end
