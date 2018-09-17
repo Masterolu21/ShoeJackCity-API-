@@ -12,8 +12,6 @@ defmodule Sjc.Game do
 
   # API
 
-  ## TODO: BATTLE PHASE - WHEN A NEXT ROUND IS CALLED START RUNNING THE TIMER FOR 60 SECONDS
-  ## TODO: BATTLE PHASE - EXECUTE ALL ACTIONS FROM PLAYERS
   ## TODO: STANDBY PHASE - APPLY STATUS EFFECTS / REMOVE DEAD PLAYERS / 20% CHANCE MINI WINDOW
   ## TODO: POINTS FOR DEFEATED PLAYERS: 10 * NUMBER OF ROUNDS LASTED
 
@@ -121,7 +119,6 @@ defmodule Sjc.Game do
   # 'action' / 'actions' should come in a map with some keys, :from, :amount, :type
   # where :type should be one of "shield", "damage".
   def handle_cast({:add_action, actions}, %{players: players} = state) when is_list(actions) do
-    # TODO: MAYBE VERIFY THAT THE PLAYER IN "FROM" KEY EXISTS IN THE GAME
     ids = Enum.map(players, & &1.id)
 
     # Only add actions from IDs that are currently in the game.
@@ -160,7 +157,7 @@ defmodule Sjc.Game do
     # We add both lists and remove duplicates by ID.
     players = Enum.uniq_by(state.players ++ attributes, & &1.id)
 
-    # We're gonna always reply the same unless the process crashes
+    # We're always going to reply the same unless the process crashes
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
   end
 
@@ -182,10 +179,6 @@ defmodule Sjc.Game do
   end
 
   # When testing or when we don't want to automatically shift rounds we call this function.
-  # @dev what happens here is that when you a specific process then you interrupt the timeout()
-  # in each return of a 'handle_*' call, which would make the process to live forever even when
-  # not in use. This also makes it impossible to test if a process dies within the specified time
-  # in timeout/0
   def handle_call(:shift_automatically, _from, state) do
     # If true, make it false, true otherwise.
     will_shift? = !state.shift_automatically
@@ -283,15 +276,11 @@ defmodule Sjc.Game do
       |> Enum.reject(&(&1.health_points <= 1))
       |> Enum.reject(fn player -> nil in Map.values(player) end)
 
-    Enum.reject(state.players, &(&1.health_points <= 0))
-
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
     # 'Process.send_after/3' when the function is called manually.
     if state.shift_automatically, do: schedule_round_timeout(state.name)
 
     handle_cast(:next_round, put_in(state, [:players], new_players))
-
-    # {:noreply, put_in(state, [:players], new_players), timeout()}
   end
 
   def get_pid(name) do
