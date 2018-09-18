@@ -97,6 +97,8 @@ defmodule Sjc.Game do
   def handle_cast(:next_round, %{round: %{number: round_num}, name: name} = state) do
     new_round = round_num + 1
 
+    # TODO: SEND REQUEST TO RAILS ENDPOINT WITH THE ACTIONS USED A.K.A. ITEMS
+
     new_state =
       state
       |> put_in([:round, :number], new_round)
@@ -206,6 +208,8 @@ defmodule Sjc.Game do
     # @dev We get the ids of the players that are in the game, we remove the id of the
     # person from the action for bombs and use the same id for shields
 
+    # TODO: DO A REQUEST TO THE RAILS ENDPOINT TO REMOVE ITEMS USED BY THE USER - ARRAY OR INDIVIDUALLY
+
     shields = Enum.filter(actions, &(&1["type"] == "shield"))
     bombs = Enum.filter(actions, &(&1["type"] == "damage"))
 
@@ -268,13 +272,19 @@ defmodule Sjc.Game do
   end
 
   defp remove_dead_players(state) do
-    # Since we're representing life as decimal points (Maybe should change to integer)
-    # We're going to remove players with less than 1 of HP because anything above 0 but below 1 would be
-    # true if we remove players with less than 0 of HP.
-    new_players =
+    ## TODO: 20% PROBABILITY FOR A WINDOW TO APPEAR AT THE END IF A PLAYER HAS DIED.
+
+    # Players with less than 1 hp are removed and those with nil values.
+    {dead_players, new_players} =
       state.players
-      |> Enum.reject(&(&1.health_points <= 1))
       |> Enum.reject(fn player -> nil in Map.values(player) end)
+      |> Enum.split_while(&(&1.health_points < 1))
+
+    # Probability for an event to happen, in this case, giving a chance for the users to live again.
+    if(:rand.uniform(100) <= 20) do
+      # TODO: SEND A MESSAGE TO THE SOCKET OF EACH DEAD PLAYER
+      Enum.each(dead_players, fn player -> player end)
+    end
 
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
     # 'Process.send_after/3' when the function is called manually.
