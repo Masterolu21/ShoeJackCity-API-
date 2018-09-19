@@ -278,7 +278,7 @@ defmodule Sjc.Game do
     {dead_players, new_players} =
       state.players
       |> Enum.reject(fn player -> nil in Map.values(player) end)
-      |> Enum.split_while(&(&1.health_points < 1))
+      |> Enum.split_with(&(&1.health_points < 1))
 
     # Probability for an event to happen, in this case, giving a chance for the users to live again.
     case :rand.uniform(100) <= 20 do
