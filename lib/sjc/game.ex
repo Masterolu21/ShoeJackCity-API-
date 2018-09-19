@@ -281,9 +281,17 @@ defmodule Sjc.Game do
       |> Enum.split_while(&(&1.health_points < 1))
 
     # Probability for an event to happen, in this case, giving a chance for the users to live again.
-    if(:rand.uniform(100) <= 20) do
-      # TODO: SEND A MESSAGE TO THE SOCKET OF EACH DEAD PLAYER
-      Enum.each(dead_players, fn player -> player end)
+    case :rand.uniform(100) <= 20 do
+      true ->
+        # TODO: SEND A MESSAGE TO THE SOCKET OF EACH DEAD PLAYER
+        Enum.each(dead_players, fn player -> player end)
+
+      false ->
+        # TODO: DO REQUEST TO AWARD POINTS TO DEAD PLAYERS FOR EACH ROUND THEY LASTED
+        Enum.each(dead_players, fn player ->
+          # points_awarded = 10 * state.round.numer
+          player
+        end)
     end
 
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
