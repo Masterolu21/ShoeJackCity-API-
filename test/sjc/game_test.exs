@@ -1,7 +1,7 @@
 defmodule Sjc.GameTest do
   @moduledoc false
 
-  use Sjc.DataCase
+  use Sjc.DataCase, async: true
 
   alias Sjc.Supervisors.GameSupervisor
   alias Sjc.Game
@@ -22,20 +22,6 @@ defmodule Sjc.GameTest do
       Game.next_round("game_1")
 
       assert Game.state("game_1").round.number == 2
-    end
-
-    test "process dies after specified time" do
-      # Timeout in test is just 1 second, 1 hour normally.
-      {:ok, pid} = GameSupervisor.start_child("game_2")
-
-      Game.shift_automatically("game_2")
-
-      assert Process.alive?(pid)
-
-      # Don't send message in more time than the timeout specified
-      :timer.sleep(2000)
-
-      refute Process.alive?(pid)
     end
 
     test "creates a player struct correctly", %{player_attrs: attributes} do
@@ -139,7 +125,7 @@ defmodule Sjc.GameTest do
       assert length(Game.state("game_11").players) == 2
 
       # Player 1 kills player 2
-      action = [%{"from" => player.id, "type" => "damage", "amount" => 51}]
+      action = [%{"from" => player.id, "type" => "damage", "amount" => 60}]
 
       Game.add_action("game_11", action)
 
@@ -215,7 +201,6 @@ defmodule Sjc.GameTest do
       assert get_shields.() == [0, 0, 0]
     end
 
-    @tag :only
     test "should remove actions after the round" do
       {:ok, pid} = GameSupervisor.start_child("game_16")
       Game.shift_automatically("game_16")
