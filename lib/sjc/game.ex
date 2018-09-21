@@ -255,6 +255,7 @@ defmodule Sjc.Game do
 
   defp do_action(players, "damage", index, amount) do
     # Check if user has a shield active
+    # TODO: PLAYER HEALTH IS FLOAT INSTEAD OF INTEGERS
     shield_amount = get_in(players, [Access.at(index), :shield_points])
     damage_after_shield = amount * shield_amount / 100
     final_damage_taken = Kernel.round(amount - damage_after_shield)
