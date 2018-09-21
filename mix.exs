@@ -47,7 +47,9 @@ defmodule Sjc.Mixfile do
       {:cors_plug, "~> 1.5"},
       {:timex, "~> 3.3"},
       {:sobelow, "~> 0.7.0", only: [:dev, :test]},
-      {:credo, "~> 0.9.3", only: [:dev, :test]}
+      {:credo, "~> 0.9.3", only: [:dev, :test]},
+      {:observer_cli, "~> 1.3"},
+      {:tesla, "~> 1.1"}
     ]
   end
 
