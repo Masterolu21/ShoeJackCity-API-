@@ -7,11 +7,11 @@ defmodule Sjc.HTTP do
 
   alias Tesla.Middleware
 
-  plug(Middleware.BaseUrl, "URL")
+  plug(Middleware.BaseUrl, "http://url.com")
   plug(Middleware.JSON, engine: Jason)
 
-  def items_used(object) do
-    post("/api/v1/items_used", object)
+  def send_used_items(object) do
+    post("/api/v1/remove_items_used", object)
   end
 
   def dead_players_points(object) do
