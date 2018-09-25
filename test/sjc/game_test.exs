@@ -1,12 +1,17 @@
 defmodule Sjc.GameTest do
   @moduledoc false
 
-  use Sjc.DataCase, async: true
+  use ExUnit.Case, async: false
+  use Sjc.DataCase
+
+  import Tesla.Mock
 
   alias Sjc.Supervisors.GameSupervisor
   alias Sjc.Game
 
   setup do
+    mock_global(fn env -> env end)
+
     player_attributes = build(:player)
 
     {:ok, player_attrs: player_attributes}
@@ -201,6 +206,7 @@ defmodule Sjc.GameTest do
       assert get_shields.() == [0, 0, 0]
     end
 
+    @tag :only
     test "should remove actions after the round" do
       {:ok, pid} = GameSupervisor.start_child("game_16")
       Game.shift_automatically("game_16")

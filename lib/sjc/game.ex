@@ -9,6 +9,7 @@ defmodule Sjc.Game do
 
   alias Sjc.Game.Player
   alias Sjc.GameBackup
+  alias Sjc.HTTP
 
   # API
 
@@ -105,6 +106,10 @@ defmodule Sjc.Game do
       |> put_in([:time_of_round], Timex.now())
       |> put_in([:actions], [])
       |> update_in([:players, Access.all()], &Map.put(&1, :shield_points, 0))
+
+    # TODO: DO A REQUEST TO THE RAILS ENDPOINT TO REMOVE ITEMS USED BY THE USER - ARRAY OR INDIVIDUALLY
+    # TODO: EVALUATE IF THIS SHOULD BE DONE AT THE START OF THE ROUND OR WHEN IT'S FINISHING
+    HTTP.send_used_items(state.actions)
 
     # We send a signal to the channel because a round has just passed
     SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
@@ -208,8 +213,6 @@ defmodule Sjc.Game do
     # @dev We get the ids of the players that are in the game, we remove the id of the
     # person from the action for bombs and use the same id for shields
 
-    # TODO: DO A REQUEST TO THE RAILS ENDPOINT TO REMOVE ITEMS USED BY THE USER - ARRAY OR INDIVIDUALLY
-
     shields = Enum.filter(actions, &(&1["type"] == "shield"))
     bombs = Enum.filter(actions, &(&1["type"] == "damage"))
 
@@ -273,14 +276,13 @@ defmodule Sjc.Game do
   end
 
   defp remove_dead_players(state) do
-    ## TODO: 20% PROBABILITY FOR A WINDOW TO APPEAR AT THE END IF A PLAYER HAS DIED.
-
     # Players with less than 1 hp are removed and those with nil values.
     {dead_players, new_players} =
       state.players
       |> Enum.reject(fn player -> nil in Map.values(player) end)
       |> Enum.split_with(&(&1.health_points < 1))
 
+    ## TODO: 20% PROBABILITY FOR A WINDOW TO APPEAR AT THE END IF A PLAYER HAS DIED.
     # Probability for an event to happen, in this case, giving a chance for the users to live again.
     case :rand.uniform(100) <= 20 do
       true ->
@@ -289,10 +291,15 @@ defmodule Sjc.Game do
 
       false ->
         # TODO: DO REQUEST TO AWARD POINTS TO DEAD PLAYERS FOR EACH ROUND THEY LASTED
-        Enum.each(dead_players, fn player ->
-          # points_awarded = 10 * state.round.numer
-          player
-        end)
+        # TODO: SEND MESSAGE TO SOCKET TO NOTIFY THE PLAYER THE POINTS THEY GAINED
+        payload =
+          Enum.map(dead_players, fn player ->
+            points_awarded = 10 * state.round.number
+
+            %{"player" => player.id, "points" => points_awarded, "rounds" => state.round.number}
+          end)
+
+        HTTP.dead_players_points(payload)
     end
 
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
