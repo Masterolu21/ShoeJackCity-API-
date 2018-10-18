@@ -7,6 +7,7 @@ defmodule Sjc.GameTest do
   import Tesla.Mock
 
   alias Sjc.Supervisors.GameSupervisor
+  alias Sjc.Game.Inventory
   alias Sjc.Game
 
   setup do
@@ -150,7 +151,6 @@ defmodule Sjc.GameTest do
       assert {:error, :max_length} = Game.add_player("game_13", build(:player))
     end
 
-    @tag :only
     test "shields should be applied first and damage reduced" do
       {:ok, pid} = GameSupervisor.start_child("game_14")
       Game.shift_automatically("game_14")
@@ -245,7 +245,7 @@ defmodule Sjc.GameTest do
       assert length(Game.state("game_17").actions) == 0
     end
 
-    test "if a list of players is added, convert them all to a Player struct" do
+    test "convert all players to struct when adding from a list" do
       {:ok, _pid} = GameSupervisor.start_child("game_18")
 
       Game.shift_automatically("game_18")
@@ -261,6 +261,42 @@ defmodule Sjc.GameTest do
       state = Game.state("game_18")
 
       assert Enum.all?(state.players, &Map.has_key?(&1, :__struct__))
+    end
+
+    @tag :only
+    test "should create the user inventory when adding the player to a game" do
+      {:ok, _} = GameSupervisor.start_child("game_19")
+
+      Game.shift_automatically("game_19")
+
+      player = %{id: 123, inventory: %{item_id: 51, amount: 4}}
+
+      Game.add_player("game_19", player)
+
+      state = Game.state("game_19")
+
+      assert Enum.all?(state.players, &Map.has_key?(&1, :__struct__))
+      assert Enum.at(state.players, 0).inventory == %Inventory{item_id: 51, amount: 4}
+    end
+
+    @tag :only
+    test "should create inventory struct when adding players from list" do
+      players = [
+        %{id: 12, inventory: %{item_id: 50, amount: 1}},
+        %{id: 141, inventory: %{item_id: 40, amount: 12}}
+      ]
+
+      Game.add_player("game_19", players)
+
+      state = Game.state("game_19")
+
+      expected = [
+        %Inventory{item_id: 51, amount: 4},
+        %Inventory{item_id: 50, amount: 1},
+        %Inventory{item_id: 40, amount: 12}
+      ]
+
+      assert Enum.map(state.players, & &1.inventory) == expected
     end
   end
 end

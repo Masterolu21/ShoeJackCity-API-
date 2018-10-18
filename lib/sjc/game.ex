@@ -7,7 +7,7 @@ defmodule Sjc.Game do
 
   require Logger
 
-  alias Sjc.Game.Player
+  alias Sjc.Game.{Player, Inventory}
   alias Sjc.GameBackup
   alias Sjc.HTTP
 
@@ -158,20 +158,26 @@ defmodule Sjc.Game do
     {:reply, state, state, timeout()}
   end
 
+  # TODO: PLAYERS INVENTORY. WE'LL GET A REFERENCE FOR IT, JUST AN ID AND THE AMOUNT THE USER HAS.
   # We still need to check if the player already exists or not but in this case
   # we're not going to reply back with an error, instead we're just going to remove the duplicate.
   def handle_call({:add_player, attributes}, _from, state) when is_list(attributes) do
     # We add both lists and remove duplicates by ID.
     players_in_struct = Enum.map(attributes, &struct(Player, &1))
-    players = Enum.uniq_by(state.players ++ players_in_struct, & &1.id)
 
-    # We're always going to reply the same unless the process crashes
+    players_inv =
+      update_in(players_in_struct, [Access.all(), Access.key(:inventory)], &struct(Inventory, &1))
+
+    players = Enum.uniq_by(state.players ++ players_inv, & &1.id)
+
+    # We're always going to reply the same unless the process crashes.
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
   end
 
   # Adds player if it doesn't exist yet.
   def handle_call({:add_player, attrs}, _from, state) do
-    player = struct(Player, attrs)
+    player_struct = struct(Player, attrs)
+    player = update_in(player_struct, [Access.key(:inventory)], &struct(Inventory, &1))
     new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
 
     cond do
@@ -213,6 +219,8 @@ defmodule Sjc.Game do
   def handle_info(:round_timeout, %{players: players, actions: actions} = state) do
     # @dev We get the ids of the players that are in the game, we remove the id of the
     # person from the action for bombs and use the same id for shields
+
+    # TODO: REMOVE USED ITEMS
 
     shields = Enum.filter(actions, &(&1["type"] == "shield"))
     bombs = Enum.filter(actions, &(&1["type"] == "damage"))

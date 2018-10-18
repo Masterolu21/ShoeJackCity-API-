@@ -8,5 +8,6 @@ defmodule Sjc.Game.Player do
             health_points: 100,
             shield_points: 0,
             accuracy: 0,
-            luck: 0
+            luck: 0,
+            inventory: []
 end
