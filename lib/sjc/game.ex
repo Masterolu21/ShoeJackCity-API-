@@ -162,7 +162,8 @@ defmodule Sjc.Game do
   # we're not going to reply back with an error, instead we're just going to remove the duplicate.
   def handle_call({:add_player, attributes}, _from, state) when is_list(attributes) do
     # We add both lists and remove duplicates by ID.
-    players = Enum.uniq_by(state.players ++ attributes, & &1.id)
+    players_in_struct = Enum.map(attributes, &struct(Player, &1))
+    players = Enum.uniq_by(state.players ++ players_in_struct, & &1.id)
 
     # We're always going to reply the same unless the process crashes
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
@@ -233,7 +234,6 @@ defmodule Sjc.Game do
 
         do_action(acc, action["type"], player_index, action["amount"])
       end)
-      |> Enum.map(&struct(Player, &1))
 
     Process.send_after(get_pid(state.name), :standby_phase, 5_000)
 
@@ -259,16 +259,16 @@ defmodule Sjc.Game do
   defp do_action(players, "damage", index, amount) do
     # Check if user has a shield active
     # TODO: PLAYER HEALTH IS FLOAT INSTEAD OF INTEGERS
-    shield_amount = get_in(players, [Access.at(index), :shield_points])
+    shield_amount = get_in(players, [Access.at(index), Access.key(:shield_points)])
     damage_after_shield = amount * shield_amount / 100
     final_damage_taken = Kernel.round(amount - damage_after_shield)
 
-    update_in(players, [Access.at(index), :health_points], &(&1 - final_damage_taken))
+    update_in(players, [Access.at(index), Access.key(:health_points)], &(&1 - final_damage_taken))
   end
 
   # Amount in shield should be a percentage from the damage to be removed.
   defp do_action(players, "shield", index, amount) do
-    update_in(players, [Access.at(index), :shield_points], &(&1 + amount))
+    update_in(players, [Access.at(index), Access.key(:shield_points)], &(&1 + amount))
   end
 
   defp do_action(players, _type, _index, _amount) do

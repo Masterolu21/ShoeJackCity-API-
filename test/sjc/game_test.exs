@@ -150,6 +150,7 @@ defmodule Sjc.GameTest do
       assert {:error, :max_length} = Game.add_player("game_13", build(:player))
     end
 
+    @tag :only
     test "shields should be applied first and damage reduced" do
       {:ok, pid} = GameSupervisor.start_child("game_14")
       Game.shift_automatically("game_14")
@@ -206,7 +207,6 @@ defmodule Sjc.GameTest do
       assert get_shields.() == [0, 0, 0]
     end
 
-    @tag :only
     test "should remove actions after the round" do
       {:ok, pid} = GameSupervisor.start_child("game_16")
       Game.shift_automatically("game_16")
@@ -243,6 +243,24 @@ defmodule Sjc.GameTest do
       Game.add_action("game_17", action)
 
       assert length(Game.state("game_17").actions) == 0
+    end
+
+    test "if a list of players is added, convert them all to a Player struct" do
+      {:ok, _pid} = GameSupervisor.start_child("game_18")
+
+      Game.shift_automatically("game_18")
+
+      players = [
+        %{id: 12},
+        %{id: 151},
+        %{id: 12}
+      ]
+
+      Game.add_player("game_18", players)
+
+      state = Game.state("game_18")
+
+      assert Enum.all?(state.players, &Map.has_key?(&1, :__struct__))
     end
   end
 end

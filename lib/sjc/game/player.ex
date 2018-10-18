@@ -3,5 +3,10 @@ defmodule Sjc.Game.Player do
   Module that provides a player struct for player stats.
   """
 
-  defstruct ~w(id health_points shield_points accuracy luck)a
+  @enforce_keys [:id]
+  defstruct id: 0,
+            health_points: 100,
+            shield_points: 0,
+            accuracy: 0,
+            luck: 0
 end
