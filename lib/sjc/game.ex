@@ -47,6 +47,10 @@ defmodule Sjc.Game do
     GenServer.cast(via(name), {:add_action, action})
   end
 
+  def clean_game(name) do
+    GenServer.cast(via(name), :clean_game)
+  end
+
   def state(name) do
     GenServer.call(via(name), :state)
   end
@@ -153,6 +157,20 @@ defmodule Sjc.Game do
     end
   end
 
+  def handle_cast(:clean_game, state) do
+    init_state =
+      state
+      |> put_in([:players], [])
+      |> put_in([:actions], [])
+      |> put_in([:round, :number], 1)
+      |> put_in([:shift_automatically], true)
+
+    case Application.get_env(:sjc, :env) == :test do
+      true -> {:noreply, init_state, timeout()}
+      false -> {:noreply, state}
+    end
+  end
+
   # Returns the whole process state
   def handle_call(:state, _from, state) do
     {:reply, state, state, timeout()}
@@ -163,12 +181,19 @@ defmodule Sjc.Game do
   # we're not going to reply back with an error, instead we're just going to remove the duplicate.
   def handle_call({:add_player, attributes}, _from, state) when is_list(attributes) do
     # We add both lists and remove duplicates by ID.
-    players_in_struct = Enum.map(attributes, &struct(Player, &1))
+    inc_players =
+      Enum.map(attributes, fn attr ->
+        single_struct = struct(Player, attr)
 
-    players_inv =
-      update_in(players_in_struct, [Access.all(), Access.key(:inventory)], &struct(Inventory, &1))
+        inventory =
+          [attr.inventory]
+          |> List.flatten()
+          |> Enum.map(&struct(Inventory, &1))
 
-    players = Enum.uniq_by(state.players ++ players_inv, & &1.id)
+        put_in(single_struct, [Access.key(:inventory)], inventory)
+      end)
+
+    players = Enum.uniq_by(state.players ++ inc_players, & &1.id)
 
     # We're always going to reply the same unless the process crashes.
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
@@ -177,12 +202,31 @@ defmodule Sjc.Game do
   # Adds player if it doesn't exist yet.
   def handle_call({:add_player, attrs}, _from, state) do
     player_struct = struct(Player, attrs)
-    player = update_in(player_struct, [Access.key(:inventory)], &struct(Inventory, &1))
+    # Inventory MUST be a list, in the case it isn't a list we're just going to
+    # make it a list and flatten the result.
+    player_inventory =
+      [player_struct.inventory]
+      |> List.flatten()
+      |> Enum.map(&struct(Inventory, &1))
+
+    player = put_in(player_struct, [Access.key(:inventory)], player_inventory)
     new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
+
+    # We only allow 99 as the amount of a single item per user in a game.
+    amounts_on_inventory =
+      [player.inventory]
+      |> List.flatten()
+      |> Enum.map(& &1.amount)
 
     cond do
       Enum.any?(state.players, &(&1.id == attrs.id)) ->
         {:reply, {:error, :already_added}, state, timeout()}
+
+      length(player.inventory) > 200 ->
+        {:reply, {:error, :exceeded_inventory_limit}, state, timeout()}
+
+      Enum.any?(amounts_on_inventory, &(&1 > 99)) ->
+        {:reply, {:error, :exceeded_item_limit}, state, timeout()}
 
       length(new_state.players) > 1_000 ->
         {:reply, {:error, :max_length}, state, timeout()}
