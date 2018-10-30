@@ -5,6 +5,7 @@ defmodule SjcWeb.GameSocket do
 
   ## Channels
   # channel "room:*", SjcWeb.RoomChannel
+  channel("game:lobby", SjcWeb.GameLobby)
   channel("game:*", SjcWeb.GameChannel)
 
   ## Transports
@@ -14,7 +15,7 @@ defmodule SjcWeb.GameSocket do
   def connect(%{"jwt_token" => token}, socket) do
     # :max_age would make this token valid only for a connection.
     case Phoenix.Token.verify(socket, "ws salt", token, max_age: 20) do
-      {:ok, [id, _ip, _timestamp]} ->
+      {:ok, [id, _timestamp]} ->
         new_socket = assign(socket, :identifier, id)
         {:ok, new_socket}
 
