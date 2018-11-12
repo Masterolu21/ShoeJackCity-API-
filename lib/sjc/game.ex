@@ -167,7 +167,7 @@ defmodule Sjc.Game do
 
     case Application.get_env(:sjc, :env) == :test do
       true -> {:noreply, init_state, timeout()}
-      false -> {:noreply, state}
+      false -> {:noreply, state, timeout()}
     end
   end
 
@@ -270,21 +270,19 @@ defmodule Sjc.Game do
     bombs = Enum.filter(actions, &(&1["type"] == "damage"))
 
     updated_players =
-      (shields ++ bombs)
-      |> Enum.reduce(players, fn action, acc ->
-        ids = players |> Enum.map(& &1.id) |> Enum.reject(&(&1 == action["from"]))
+      Enum.reduce(shields ++ bombs, players, fn action, acc ->
+        ids =
+          players
+          |> Enum.map(& &1.id)
+          |> Enum.reject(&(&1 == action["from"]))
 
         # If 'type' is a bomb then we select a random ID except the user
         # If shield then the target is the user itself.
-        target =
-          case action["type"] == "damage" do
-            true -> Enum.random(ids)
-            false -> action["from"]
-          end
+        target = get_target(ids, action)
 
         player_index = Enum.find_index(players, &(&1.id == target))
 
-        do_action(acc, action["type"], player_index, action["amount"])
+        do_action(acc, action, player_index)
       end)
 
     Process.send_after(get_pid(state.name), :standby_phase, 5_000)
@@ -297,34 +295,48 @@ defmodule Sjc.Game do
     remove_dead_players(state)
   end
 
-  # Timeout is just the time a GenServer (Lobby process) can stay alive without
-  # receiving any messages, defaults to 1 hour.
-  # 1 hour without receiving any messages = die.
-  defp timeout do
-    Application.fetch_env!(:sjc, :game_timeout)
-  end
+  defp get_target([], _action), do: 0
+  defp get_target(ids, %{"type" => "damage"}), do: Enum.random(ids)
+  defp get_target(_ids, %{"type" => "shield"} = action), do: action["from"]
 
-  defp round_timeout do
-    Application.fetch_env!(:sjc, :round_timeout)
-  end
-
-  defp do_action(players, "damage", index, amount) do
+  defp do_action(players, %{"type" => "damage"} = action, index) when not is_nil(index) do
     # Check if user has a shield active
     # TODO: PLAYER HEALTH IS FLOAT INSTEAD OF INTEGERS
     shield_amount = get_in(players, [Access.at(index), Access.key(:shield_points)])
-    damage_after_shield = amount * shield_amount / 100
-    final_damage_taken = Kernel.round(amount - damage_after_shield)
+    damage_after_shield = action["amount"] * shield_amount / 100
+    final_damage_taken = Kernel.round(action["amount"] - damage_after_shield)
 
-    update_in(players, [Access.at(index), Access.key(:health_points)], &(&1 - final_damage_taken))
+    players
+    |> update_in([Access.at(index), Access.key(:health_points)], &(&1 - final_damage_taken))
+    |> remove_used_item(action, index)
   end
 
   # Amount in shield should be a percentage from the damage to be removed.
-  defp do_action(players, "shield", index, amount) do
-    update_in(players, [Access.at(index), Access.key(:shield_points)], &(&1 + amount))
+  defp do_action(players, %{"type" => "shield"} = action, index) when not is_nil(index) do
+    players
+    |> update_in([Access.at(index), Access.key(:shield_points)], &(&1 + action["amount"]))
+    |> remove_used_item(action, index)
   end
 
-  defp do_action(players, _type, _index, _amount) do
+  # Catch everything else, no recognized type, nil fields, etc...
+  defp do_action(players, _type, _index) do
     players
+  end
+
+  defp remove_used_item(players, action, arg_index) do
+    index =
+      case action["type"] == "damage" do
+        true -> Enum.find_index(players, &(&1.id == action["from"]))
+        false -> arg_index
+      end
+
+    update_in(players, [Access.at(index), Access.key(:inventory), Access.all()], fn inv ->
+      if inv.item_id == action["id"] do
+        Map.put(inv, :amount, inv.amount - 1)
+      else
+        inv
+      end
+    end)
   end
 
   defp remove_dead_players(state) do
@@ -358,11 +370,23 @@ defmodule Sjc.Game do
     # 'Process.send_after/3' when the function is called manually.
     if state.shift_automatically, do: schedule_round_timeout(state.name)
 
+    # TODO: MAYBE ADD A LITTLE DELAY BEFORE TRIGGERING THE NEXT ROUND
     handle_cast(:next_round, put_in(state, [:players], new_players))
   end
 
   def get_pid(name) do
     [{pid, _}] = Registry.lookup(:game_registry, name)
     pid
+  end
+
+  # Timeout is just the time a GenServer (Lobby process) can stay alive without
+  # receiving any messages, defaults to 1 hour.
+  # 1 hour without receiving any messages = die.
+  defp timeout do
+    Application.fetch_env!(:sjc, :game_timeout)
+  end
+
+  defp round_timeout do
+    Application.fetch_env!(:sjc, :round_timeout)
   end
 end
