@@ -15,7 +15,8 @@ defmodule Sjc.Application do
       supervisor(Registry, [:unique, :game_registry], id: 1),
       supervisor(Registry, [:unique, :game_supervisor_registry], id: 2),
       supervisor(Registry, [:unique, :game_backup], id: 3),
-      supervisor(Sjc.Supervisors.GameSupervisor, [])
+      supervisor(Sjc.Supervisors.GameSupervisor, []),
+      worker(Sjc.Queue, [])
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

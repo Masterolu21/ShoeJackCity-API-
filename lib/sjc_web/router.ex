@@ -7,5 +7,9 @@ defmodule SjcWeb.Router do
 
   scope "/api/v1", SjcWeb do
     pipe_through(:api)
+
+    scope "/queue" do
+      post("/add_player", QueueController, :add_player)
+    end
   end
 end
