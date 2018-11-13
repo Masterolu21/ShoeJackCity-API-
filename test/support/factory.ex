@@ -22,4 +22,10 @@ defmodule Sjc.Factory do
       amount: Enum.random(1..99)
     }
   end
+
+  def game_factory do
+    %{
+      name: sequence(:name, &"game_#{&1}")
+    }
+  end
 end
