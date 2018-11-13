@@ -381,6 +381,9 @@ defmodule Sjc.GameTest do
       |> Enum.at(0)
       |> Map.get(:amount)
 
+    inv_amount = Enum.at(player.inventory, 0).amount
+
     assert Enum.at(player.inventory, 0).amount > curr_amount
+    assert inv_amount - 1 == curr_amount
   end
 end

@@ -271,10 +271,8 @@ defmodule Sjc.Game do
 
     updated_players =
       Enum.reduce(shields ++ bombs, players, fn action, acc ->
-        ids =
-          players
-          |> Enum.map(& &1.id)
-          |> Enum.reject(&(&1 == action["from"]))
+        # We need to get all the ids first.
+        ids = Enum.map(players, & &1.id)
 
         # If 'type' is a bomb then we select a random ID except the user
         # If shield then the target is the user itself.
@@ -295,9 +293,19 @@ defmodule Sjc.Game do
     remove_dead_players(state)
   end
 
-  defp get_target([], _action), do: 0
-  defp get_target(ids, %{"type" => "damage"}), do: Enum.random(ids)
-  defp get_target(_ids, %{"type" => "shield"} = action), do: action["from"]
+  defp get_target(ids, %{"type" => "damage"} = action) do
+    # We need to remove the user who sent the action in this case.
+    targets = Enum.reject(ids, &(&1 == action["from"]))
+
+    case targets == [] do
+      true -> 0
+      false -> Enum.random(targets)
+    end
+  end
+
+  defp get_target(_ids, %{"type" => "shield"} = action) do
+    action["from"]
+  end
 
   defp do_action(players, %{"type" => "damage"} = action, index) when not is_nil(index) do
     # Check if user has a shield active
@@ -324,6 +332,10 @@ defmodule Sjc.Game do
   end
 
   defp remove_used_item(players, action, arg_index) do
+    # Since we are sending the index of the target instead of the player who sent the action
+    # here we're checking if the action type is damage, in that case we need to get the
+    # index of the player sent the action to remove the item from the inventory
+    # otherwise we just stick with the index of the person who sent the action (shield) which would be correct in that case.
     index =
       case action["type"] == "damage" do
         true -> Enum.find_index(players, &(&1.id == action["from"]))
