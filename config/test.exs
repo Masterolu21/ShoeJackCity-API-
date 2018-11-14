@@ -4,7 +4,8 @@ use Mix.Config
 config :sjc,
   game_timeout: 800,
   round_timeout: 500,
-  env: :test
+  env: :test,
+  game_intervals: [seconds: 1]
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
