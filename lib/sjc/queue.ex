@@ -9,6 +9,8 @@ defmodule Sjc.Queue do
   Each game has the time it'll start and players on it.
   """
 
+  # TODO: CHANGE TYPES (CALL / CAST) SINCE WE NEED REPLIES FOR THESES ACTIONS
+
   use GenServer
 
   @tz "America/Caracas"
@@ -35,13 +37,13 @@ defmodule Sjc.Queue do
     state
   end
 
-  def add(game, %{"id" => _id} = player) when is_integer(game) do
+  def add(game, %{"id" => _id} = player)
+      when is_integer(game) and game > 0 and game < 10 do
     GenServer.cast(:queue_sys, {:add_player, game, player})
   end
 
   def remove(game, player_id)
-      when is_integer(player_id)
-      when is_integer(game) do
+      when is_integer(player_id) and is_integer(game) and game > 0 and game < 10 do
     GenServer.cast(:queue_sys, {:remove_player, game, player_id})
   end
 
@@ -53,7 +55,8 @@ defmodule Sjc.Queue do
     GenServer.call(:queue_sys, :state)
   end
 
-  def players(game) when is_integer(game) do
+  def players(game)
+      when is_integer(game) and game > 0 and game < 10 do
     GenServer.call(:queue_sys, {:player_list, game})
   end
 
@@ -61,19 +64,21 @@ defmodule Sjc.Queue do
     {:ok, state}
   end
 
+  # Adds player only if it's not in the queue for the same game already.
   def handle_cast({:add_player, game, player}, state) do
-    # Adds player only if it's not in the queue already
-    # TODO: Plaer shouldn't be in two games at the same time.
-    op =
+    # This function will traverse all the games players and remove the players with the same ID as the incoming one.
+    # Meaning that this will also work to remove from a game and add the player to another one.
+    game_state =
       state
-      |> Map.get(game)
-      |> Map.get(:players)
-      |> Enum.any?(&(&1["id"] == player["id"]))
+      |> Enum.reduce(%{}, fn {id, game}, acc ->
+        rej_opt = Enum.reject(game.players, &(&1["id"] == player["id"]))
+        players = put_in(game[:players], rej_opt)
 
-    case op do
-      true -> {:noreply, state}
-      false -> {:noreply, update_in(state, [game, :players], &List.insert_at(&1, -1, player))}
-    end
+        Map.put(acc, id, players)
+      end)
+      |> update_in([game, :players], &List.insert_at(&1, -1, player))
+
+    {:noreply, game_state}
   end
 
   def handle_cast({:remove_player, game, id}, state) do
