@@ -18,37 +18,37 @@ defmodule Sjc.QueueTest do
     :ok
   end
 
-  describe "add_player/1" do
+  describe "add_player/2" do
     test "adds player to queue correctly", %{player: player} do
-      :ok = Queue.add(player)
-      players = Queue.players()
+      :ok = Queue.add(2, player)
+      players = Queue.players(2)
 
       assert players == [player]
     end
 
     test "does not add player if it's already in queue", %{player: player} do
-      :ok = Queue.add(player)
-      :ok = Queue.add(player)
+      :ok = Queue.add(3, player)
+      :ok = Queue.add(3, player)
 
-      players = Queue.players()
+      players = Queue.players(3)
 
       assert players == [player]
     end
   end
 
-  describe "remove_player/1" do
+  describe "remove_player/2" do
     test "removes player if it's in queue", %{player: player} do
-      :ok = Queue.add(player)
-      Queue.remove(player["id"])
+      :ok = Queue.add(3, player)
+      Queue.remove(3, player["id"])
 
-      assert Queue.players() == []
+      assert Queue.players(3) == []
     end
 
     test "doesn't do anything if the removed players is not in the queue", %{player: player} do
-      :ok = Queue.add(player)
-      Queue.remove(921_731)
+      :ok = Queue.add(7, player)
+      Queue.remove(4, 921_731)
 
-      assert Queue.players() == [player]
+      assert Queue.players(7) == [player]
     end
   end
 end
