@@ -9,7 +9,7 @@ defmodule SjcWeb.QueueController do
 
   def add_player(conn, params) do
     response =
-      case Queue.add(params["player"]) do
+      case Queue.add(params["game"], params["player"]) do
         :ok -> "added"
         _ -> "error adding player to queue"
       end

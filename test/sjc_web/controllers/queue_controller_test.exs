@@ -15,10 +15,10 @@ defmodule SjcWeb.QueueControllerTest do
     test "adds player from controller correctly", %{conn: conn, player: player} do
       %{"status" => res} =
         conn
-        |> post(queue_path(conn, :add_player), player: player)
+        |> post(queue_path(conn, :add_player), player: player, game: 3)
         |> json_response(200)
 
-      players = Queue.players()
+      players = Queue.players(3)
 
       assert res == "added"
       assert players == [player]
