@@ -8,12 +8,6 @@ defmodule SjcWeb.QueueController do
   alias Sjc.Queue
 
   def add_player(conn, params) do
-    response =
-      case Queue.add(params["game"], params["player"]) do
-        :ok -> "added"
-        _ -> "error adding player to queue"
-      end
-
-    json(conn, %{status: response})
+    json(conn, %{status: Queue.add(params["game"], params["player"])})
   end
 end
