@@ -3,13 +3,14 @@ defmodule Sjc.QueueTest do
 
   use Sjc.DataCase
 
-  alias Sjc.Queue
+  alias Sjc.{Queue, Game}
 
   setup do
     # This way we get a string keys.
     player = :player |> build() |> Jason.encode!() |> Jason.decode!()
+    day_str = Timex.now() |> Timex.day() |> to_string()
 
-    {:ok, player: player}
+    {:ok, player: player, day: day_str}
   end
 
   setup do
@@ -60,5 +61,24 @@ defmodule Sjc.QueueTest do
 
       assert Queue.players(7) == [player]
     end
+  end
+
+  test "game is created automatically when time is reached", %{day: day_str} do
+    :timer.sleep(1_000)
+
+    assert Game.state("#{day_str}_1")
+  end
+
+  test "game gets created and adds all the players from the queue to it", %{day: day_str} do
+    Enum.each(1..100, fn _ ->
+      player = :player |> build() |> Jason.encode!() |> Jason.decode!()
+      Queue.add(1, player)
+    end)
+
+    :timer.sleep(1_500)
+
+    game = Game.state("#{day_str}_1")
+
+    assert length(game.players) == 100
   end
 end

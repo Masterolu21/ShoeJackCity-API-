@@ -9,9 +9,12 @@ defmodule Sjc.Queue do
   Each game has the time it'll start and players on it.
   """
 
-  # TODO: CHANGE TYPES (CALL / CAST) SINCE WE NEED REPLIES FOR THESES ACTIONS
-
   use GenServer
+
+  require Logger
+
+  alias Sjc.Game
+  alias Sjc.Supervisors.GameSupervisor
 
   @tz "America/Caracas"
 
@@ -28,7 +31,8 @@ defmodule Sjc.Queue do
 
         data = %{
           start_time: time_for_game,
-          players: []
+          players: [],
+          started: false
         }
 
         {time_for_game, Map.put(acc, game, data)}
@@ -61,7 +65,13 @@ defmodule Sjc.Queue do
   end
 
   def init(state) do
+    check_times()
+
     {:ok, state}
+  end
+
+  defp check_times do
+    Process.send_after(self(), :check_times, 1_000)
   end
 
   def handle_cast(:clean, state) do
@@ -119,5 +129,47 @@ defmodule Sjc.Queue do
   def handle_call({:player_list, game}, _from, state) do
     players = state |> Map.get(game) |> Map.get(:players)
     {:reply, players, state}
+  end
+
+  def handle_info(:check_times, state) do
+    now = Timex.now()
+    not_started_games = Enum.reject(state, fn {_id, game} -> game.started end)
+    # Check if game time has been reached.
+    games =
+      Enum.reduce(not_started_games, %{}, fn {id, game}, acc ->
+        case Timex.equal?(now, game.start_time) || Timex.after?(now, game.start_time) do
+          true ->
+            # TODO: MAYBE SEND MESSAGE THROUGH THE SOCKET WHICH THE USER SHOULD BE ALREADY
+            day_str = Timex.now() |> Timex.day() |> to_string()
+            name = "#{day_str}_#{id}"
+
+            GameSupervisor.start_child(name)
+
+            # Only here we're converting string keys to atoms to stick to the design of Game.
+            # We are using string keys in queue because they come from Phoenix.
+            players =
+              game.players
+              |> Jason.encode!()
+              |> Jason.decode!(keys: :atoms)
+
+            Game.add_player(name, players)
+
+            Logger.info("[GAME CREATED] #{name}")
+
+            updated_game =
+              game
+              |> Map.put(:started, true)
+              |> Map.put(:players, [])
+
+            Map.merge(%{id => updated_game}, acc)
+
+          false ->
+            Map.merge(%{id => game}, acc)
+        end
+      end)
+
+    check_times()
+
+    {:noreply, Map.merge(state, games)}
   end
 end
