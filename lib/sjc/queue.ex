@@ -37,18 +37,18 @@ defmodule Sjc.Queue do
     state
   end
 
+  def clean do
+    GenServer.cast(:queue_sys, :clean)
+  end
+
   def add(game, %{"id" => _id} = player)
       when is_integer(game) and game > 0 and game < 10 do
-    GenServer.cast(:queue_sys, {:add_player, game, player})
+    GenServer.call(:queue_sys, {:add_player, game, player})
   end
 
   def remove(game, player_id)
       when is_integer(player_id) and is_integer(game) and game > 0 and game < 10 do
-    GenServer.cast(:queue_sys, {:remove_player, game, player_id})
-  end
-
-  def clean do
-    GenServer.cast(:queue_sys, :clean)
+    GenServer.call(:queue_sys, {:remove_player, game, player_id})
   end
 
   def state do
@@ -64,38 +64,52 @@ defmodule Sjc.Queue do
     {:ok, state}
   end
 
-  # Adds player only if it's not in the queue for the same game already.
-  def handle_cast({:add_player, game, player}, state) do
-    # This function will traverse all the games players and remove the players with the same ID as the incoming one.
-    # Meaning that this will also work to remove from a game and add the player to another one.
-    game_state =
-      state
-      |> Enum.reduce(%{}, fn {id, game}, acc ->
-        rej_opt = Enum.reject(game.players, &(&1["id"] == player["id"]))
-        players = put_in(game[:players], rej_opt)
-
-        Map.put(acc, id, players)
-      end)
-      |> update_in([game, :players], &List.insert_at(&1, -1, player))
-
-    {:noreply, game_state}
+  def handle_cast(:clean, state) do
+    case Application.get_env(:sjc, :env) do
+      :test -> {:noreply, populate_state()}
+      _ -> {:noreply, state}
+    end
   end
 
-  def handle_cast({:remove_player, game, id}, state) do
+  # Adds player only if it's not in the queue for the same game already.
+  def handle_call({:add_player, game, player}, _from, state) do
+    players_in_game =
+      state
+      |> Map.get(game)
+      |> Map.get(:players)
+
+    cond do
+      length(players_in_game) >= 1_000 ->
+        {:reply, "maximum amount reached", state}
+
+      Enum.any?(players_in_game, &(&1["id"] == player["id"])) ->
+        {:reply, "already added", state}
+
+      true ->
+        # This function will traverse all the games players and remove the players with the same ID as the incoming one.
+        # Meaning that this will also work to remove from a game and add the player to another one.
+        game_state =
+          state
+          |> Enum.reduce(%{}, fn {id, game}, acc ->
+            rej_opt = Enum.reject(game.players, &(&1["id"] == player["id"]))
+            players = put_in(game[:players], rej_opt)
+
+            Map.put(acc, id, players)
+          end)
+          |> update_in([game, :players], &List.insert_at(&1, -1, player))
+
+        {:reply, "added", game_state}
+    end
+  end
+
+  def handle_call({:remove_player, game, id}, _from, state) do
     players =
       state
       |> Map.get(game)
       |> Map.get(:players)
       |> Enum.reject(&(&1["id"] == id))
 
-    {:noreply, put_in(state, [game, :players], players)}
-  end
-
-  def handle_cast(:clean, state) do
-    case Application.get_env(:sjc, :env) do
-      :test -> {:noreply, populate_state()}
-      _ -> {:noreply, state}
-    end
+    {:reply, "removed", put_in(state, [game, :players], players)}
   end
 
   def handle_call(:state, _from, state) do
