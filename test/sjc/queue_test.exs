@@ -64,7 +64,7 @@ defmodule Sjc.QueueTest do
   end
 
   test "game is created automatically when time is reached", %{day: day_str} do
-    :timer.sleep(1_000)
+    :timer.sleep(1_100)
 
     assert Game.state("#{day_str}_1")
   end

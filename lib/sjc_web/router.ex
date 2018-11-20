@@ -11,5 +11,10 @@ defmodule SjcWeb.Router do
     scope "/queue" do
       post("/add_player", QueueController, :add_player)
     end
+
+    scope "/users" do
+      post("/create_user", UserController, :create_user)
+      get("/get_user:id", UserController, :get_user)
+    end
   end
 end
