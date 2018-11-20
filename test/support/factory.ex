@@ -3,7 +3,9 @@ defmodule Sjc.Factory do
   Defines factories to use in tests.
   """
 
-  use ExMachina
+  use ExMachina.Ecto, repo: Sjc.Repo
+
+  alias Sjc.Models.User
 
   def player_factory do
     %{
@@ -26,6 +28,14 @@ defmodule Sjc.Factory do
   def game_factory do
     %{
       name: sequence(:name, &"game_#{&1}")
+    }
+  end
+
+  def user_factory do
+    %User{
+      email: sequence(:email, &"email_#{&1}@gmail.com"),
+      password: "some_generic_password",
+      password_confirmation: "some_generic_password"
     }
   end
 end
