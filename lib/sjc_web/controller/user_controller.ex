@@ -3,6 +3,8 @@ defmodule SjcWeb.UserController do
 
   use SjcWeb, :controller
 
+  import Comeonin.Argon2, only: [checkpw: 2, dummy_checkpw: 0]
+
   alias Sjc.Repo
   alias Sjc.Models.User
 
@@ -22,6 +24,33 @@ defmodule SjcWeb.UserController do
         conn
         |> put_status(:bad_request)
         |> json(%{error: reason})
+    end
+  end
+
+  def sign_in(conn, %{"email" => email, "password" => password}) do
+    case email_pass_auth(email, password) do
+      {:ok, token, _claims} ->
+        json(conn, %{jwt: token})
+
+      _ ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: :unauthorized})
+    end
+  end
+
+  defp email_pass_auth(nil, _password), do: :error
+  defp email_pass_auth(_email, nil), do: :error
+
+  defp email_pass_auth(email, password) do
+    with %User{} = user <- Repo.get_by(User, email: email),
+         true <- checkpw(password, user.password_hash),
+         {:ok, token, claims} <- encode_resource(user) do
+      {:ok, token, claims}
+    else
+      nil ->
+        dummy_checkpw()
+        :error
     end
   end
 

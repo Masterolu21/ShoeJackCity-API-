@@ -68,4 +68,26 @@ defmodule SjcWeb.UserControllerTest do
       end
     end
   end
+
+  describe "sign_in/2" do
+    test "returns jwt when user exists", %{conn: conn, user_params: params} do
+      post(conn, user_path(conn, :create_user), user: params)
+
+      %{"jwt" => token} =
+        conn
+        |> post(user_path(conn, :sign_in), params)
+        |> json_response(200)
+
+      assert {:ok, _claims} = Guardian.decode_and_verify(SjcWeb.Guardian, token)
+    end
+
+    test "returns error when user is invalid", %{conn: conn} do
+      response =
+        conn
+        |> post(user_path(conn, :sign_in), %{email: "invalid", password: "some password"})
+        |> json_response(401)
+
+      assert %{"error" => "unauthorized"} = response
+    end
+  end
 end

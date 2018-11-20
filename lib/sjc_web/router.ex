@@ -14,6 +14,7 @@ defmodule SjcWeb.Router do
 
     scope "/users" do
       post("/create_user", UserController, :create_user)
+      post("/sign_in", UserController, :sign_in)
       get("/get_user:id", UserController, :get_user)
     end
   end
