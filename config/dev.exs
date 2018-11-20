@@ -13,7 +13,7 @@ config :sjc, SjcWeb.Endpoint,
   check_origin: false,
   watchers: []
 
-config :sjc, game_intervals: [minutes: 10]
+config :sjc, game_intervals: [seconds: 10]
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
