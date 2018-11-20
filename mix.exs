@@ -47,8 +47,10 @@ defmodule Sjc.Mixfile do
       {:observer_cli, "~> 1.3"},
       {:tesla, "~> 1.1"},
       {:jason, "~> 1.1"},
-      {:ex_machina, "~> 2.2", only: :test},
+      {:comeonin, "~> 4.1"},
+      {:argon2_elixir, "~> 1.2"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
+      {:ex_machina, "~> 2.2", only: :test},
       {:sobelow, "~> 0.7.0", only: [:dev, :test]},
       {:credo, "~> 0.9.3", only: [:dev, :test]}
     ]
