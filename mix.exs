@@ -48,6 +48,7 @@ defmodule Sjc.Mixfile do
       {:tesla, "~> 1.1"},
       {:jason, "~> 1.1"},
       {:comeonin, "~> 4.1"},
+      {:guardian, "~> 1.1"},
       {:argon2_elixir, "~> 1.2"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:ex_machina, "~> 2.2", only: :test},

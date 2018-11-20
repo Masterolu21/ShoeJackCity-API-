@@ -17,6 +17,9 @@ config :argon2_elixir,
   t_cost: 1,
   m_cost: 8
 
+config :sjc, SjcWeb.Guardian,
+  secret_key: "02N47b8V/ygx1EVpP4C8L08F0SJ/Ri3D8K8s0HXGkgtLQGJGER74fW+9/oQXwM90"
+
 # Print only warnings and errors during test
 config :logger, level: :debug
 

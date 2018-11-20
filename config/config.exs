@@ -11,6 +11,8 @@ config :sjc,
   game_timeout: 3_600_000,
   round_timeout: 60_000
 
+config :sjc, SjcWeb.Guardian, issuer: :sjc
+
 # Configures the endpoint
 config :sjc, SjcWeb.Endpoint,
   url: [host: "localhost"],

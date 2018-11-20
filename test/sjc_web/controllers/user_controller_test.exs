@@ -29,6 +29,15 @@ defmodule SjcWeb.UserControllerTest do
 
       assert error == "there was a problem creating your account"
     end
+
+    test "returns a valid token when a user has signed-up", %{conn: conn, user_params: params} do
+      %{"jwt" => token} =
+        conn
+        |> post(user_path(conn, :create_user), user: params)
+        |> json_response(200)
+
+      assert {:ok, _claims} = Guardian.decode_and_verify(SjcWeb.Guardian, token)
+    end
   end
 
   describe "get_user/2" do

@@ -9,14 +9,19 @@ defmodule SjcWeb.UserController do
   def create_user(conn, params) do
     changeset = User.changeset(%User{}, params["user"])
 
-    case Repo.insert(changeset) do
-      {:ok, %User{} = user} ->
-        json(conn, %{user: user})
-
-      {:error, _changeset} ->
+    with {:ok, %User{} = user} <- Repo.insert(changeset),
+         {:ok, token, _claims} <- encode_resource(user) do
+      json(conn, %{user: user, jwt: token})
+    else
+      {:error, %Ecto.Changeset{} = _changeset} ->
         conn
         |> put_status(:bad_request)
         |> json(%{error: "there was a problem creating your account"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: reason})
     end
   end
 
@@ -32,5 +37,9 @@ defmodule SjcWeb.UserController do
 
         json(conn, %{user: user_dropped})
     end
+  end
+
+  defp encode_resource(res) do
+    Guardian.encode_and_sign(SjcWeb.Guardian, res)
   end
 end

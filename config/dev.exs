@@ -15,6 +15,9 @@ config :sjc, SjcWeb.Endpoint,
 
 config :sjc, game_intervals: [seconds: 10]
 
+config :sjc, SjcWeb.Guardian,
+  secret_key: "QPpZ60CkjQfcXoBkFsgz1pmbi2fBQXs/cGDsp46Mqd1wnA8fOAXQSsftMxQsi9nl"
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
 
