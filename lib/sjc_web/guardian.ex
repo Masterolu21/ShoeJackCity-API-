@@ -11,11 +11,16 @@ defmodule SjcWeb.Guardian do
     {:ok, sub}
   end
 
+  def subject_for_token(nil, _claims) do
+    {:error, :missing_resource}
+  end
+
   def subject_for_token(_res, _claims) do
-    {:error, :not_valid_resource}
+    {:error, :invalid_resource}
   end
 
   def resource_from_claims(claims) do
+    IO.inspect(claims)
     id = claims["sub"]
 
     case Repo.get(User, id) do

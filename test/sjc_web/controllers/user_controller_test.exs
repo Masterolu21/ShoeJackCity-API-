@@ -6,14 +6,16 @@ defmodule SjcWeb.UserControllerTest do
   setup do
     user = insert(:user)
     user_params = params_for(:user)
+    {:ok, token, _claims} = Guardian.encode_and_sign(SjcWeb.Guardian, user)
 
-    {:ok, user: user, user_params: user_params}
+    {:ok, user: user, user_params: user_params, token: token}
   end
 
   describe "create_user/2" do
-    test "creates user with correct params", %{conn: conn, user_params: params} do
+    test "creates user with correct params", %{conn: conn, user_params: params, token: token} do
       %{"user" => user} =
         conn
+        |> put_req_header("authorization", "Bearer #{token}")
         |> post(user_path(conn, :create_user), user: params)
         |> json_response(200)
 
@@ -21,9 +23,10 @@ defmodule SjcWeb.UserControllerTest do
       assert user["password"] == nil
     end
 
-    test "does not create user if params are missing", %{conn: conn} do
+    test "does not create user if params are missing", %{conn: conn, token: token} do
       %{"error" => error} =
         conn
+        |> put_req_header("authorization", "Bearer #{token}")
         |> post(user_path(conn, :create_user), user: %{})
         |> json_response(400)
 
@@ -41,9 +44,14 @@ defmodule SjcWeb.UserControllerTest do
   end
 
   describe "get_user/2" do
-    test "does not return sensitive information of the user", %{conn: conn, user: user} do
+    test "does not return sensitive information of the user", %{
+      conn: conn,
+      user: user,
+      token: token
+    } do
       %{"user" => user} =
         conn
+        |> put_req_header("authorization", "Bearer #{token}")
         |> get(user_path(conn, :get_user, to_string(user.id)))
         |> json_response(200)
 
@@ -53,18 +61,21 @@ defmodule SjcWeb.UserControllerTest do
              )
     end
 
-    test "returns error when user does not exist", %{conn: conn} do
+    test "returns error when user does not exist", %{conn: conn, token: token} do
       response =
         conn
+        |> put_req_header("authorization", "Bearer #{token}")
         |> get(user_path(conn, :get_user, "999999999999999"))
         |> json_response(404)
 
       assert %{"error" => "not found"} = response
     end
 
-    test "raises when id is not an integer or ID type", %{conn: conn} do
+    test "raises when id is not an integer or ID type", %{conn: conn, token: token} do
       assert_raise Ecto.Query.CastError, fn ->
-        get(conn, user_path(conn, :get_user, "not an integer"))
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(user_path(conn, :get_user, "not an integer"))
       end
     end
   end
