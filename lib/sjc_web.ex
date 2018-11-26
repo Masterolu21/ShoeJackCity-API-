@@ -5,8 +5,9 @@ defmodule SjcWeb do
     quote do
       use Phoenix.Controller, namespace: SjcWeb
       import Plug.Conn
-      import SjcWeb.Router.Helpers
       import SjcWeb.Gettext
+
+      alias SjcWeb.Router.Helpers, as: Routes
     end
   end
 
@@ -18,10 +19,10 @@ defmodule SjcWeb do
 
       # Import convenience functions from controllers
       import Phoenix.Controller, only: [get_flash: 2, view_module: 1]
-
-      import SjcWeb.Router.Helpers
       import SjcWeb.ErrorHelpers
       import SjcWeb.Gettext
+
+      alias SjcWeb.Router.Helpers, as: Routes
     end
   end
 

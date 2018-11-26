@@ -7,8 +7,6 @@ defmodule Sjc.Models.User do
 
   import Ecto.Changeset
 
-  @derive {Poison.Encoder, except: [:__meta__]}
-
   schema "users" do
     field(:email, :string)
     field(:password, :string, virtual: true)

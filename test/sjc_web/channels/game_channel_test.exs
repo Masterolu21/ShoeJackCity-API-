@@ -6,7 +6,7 @@ defmodule SjcWeb.GameChannelTest do
   alias SjcWeb.GameChannel
 
   setup do
-    {:ok, _, socket} = subscribe_and_join(socket(), GameChannel, "game:first")
+    {:ok, _, socket} = subscribe_and_join(socket(SjcWeb.UserSocket), GameChannel, "game:first")
 
     {:ok, socket: socket}
   end

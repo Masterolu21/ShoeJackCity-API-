@@ -12,6 +12,7 @@ config :sjc,
   round_timeout: 60_000
 
 config :sjc, SjcWeb.Guardian, issuer: :sjc
+config :phoenix, :json_library, Jason
 
 # Configures the endpoint
 config :sjc, SjcWeb.Endpoint,

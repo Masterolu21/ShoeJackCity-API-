@@ -1,5 +1,5 @@
 defmodule Sjc.Repo do
-  use Ecto.Repo, otp_app: :sjc
+  use Ecto.Repo, otp_app: :sjc, adapter: Ecto.Adapters.Postgres
 
   @doc """
   Dynamically loads the repository url from the

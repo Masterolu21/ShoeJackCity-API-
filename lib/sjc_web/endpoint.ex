@@ -3,7 +3,10 @@ defmodule SjcWeb.Endpoint do
 
   use Phoenix.Endpoint, otp_app: :sjc
 
-  socket("/game", SjcWeb.GameSocket)
+  socket("/game", SjcWeb.UserSocket,
+    websocket: true,
+    longpool: false
+  )
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -29,7 +32,7 @@ defmodule SjcWeb.Endpoint do
     Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Poison
+    json_decoder: Phoenix.json_library()
   )
 
   plug(Plug.MethodOverride)
@@ -44,8 +47,6 @@ defmodule SjcWeb.Endpoint do
     key: "_sjc_key",
     signing_salt: "e3Hg+P4Y"
   )
-
-  plug(CORSPlug, origin: "http://localhost:3000")
 
   plug(SjcWeb.Router)
 

@@ -20,7 +20,6 @@ defmodule SjcWeb.Guardian do
   end
 
   def resource_from_claims(claims) do
-    IO.inspect(claims)
     id = claims["sub"]
 
     case Repo.get(User, id) do

@@ -36,13 +36,14 @@ defmodule Sjc.Mixfile do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.3.3"},
+      {:phoenix, "~> 1.4.0"},
+      {:plug_cowboy, "~> 2.0"},
+      {:plug, "~> 1.7"},
       {:phoenix_pubsub, "~> 1.0"},
-      {:phoenix_ecto, "~> 3.2"},
+      {:phoenix_ecto, "~> 4.0"},
+      {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
       {:gettext, "~> 0.11"},
-      {:cowboy, "~> 1.0"},
-      {:cors_plug, "~> 1.5"},
       {:timex, "~> 3.3"},
       {:observer_cli, "~> 1.3"},
       {:tesla, "~> 1.1"},

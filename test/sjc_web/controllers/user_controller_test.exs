@@ -16,7 +16,7 @@ defmodule SjcWeb.UserControllerTest do
       %{"user" => user} =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> post(user_path(conn, :create_user), user: params)
+        |> post(Routes.user_path(conn, :create_user), user: params)
         |> json_response(200)
 
       assert user["email"] == params.email
@@ -27,7 +27,7 @@ defmodule SjcWeb.UserControllerTest do
       %{"error" => error} =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> post(user_path(conn, :create_user), user: %{})
+        |> post(Routes.user_path(conn, :create_user), user: %{})
         |> json_response(400)
 
       assert error == "there was a problem creating your account"
@@ -36,7 +36,7 @@ defmodule SjcWeb.UserControllerTest do
     test "returns a valid token when a user has signed-up", %{conn: conn, user_params: params} do
       %{"jwt" => token} =
         conn
-        |> post(user_path(conn, :create_user), user: params)
+        |> post(Routes.user_path(conn, :create_user), user: params)
         |> json_response(200)
 
       assert {:ok, _claims} = Guardian.decode_and_verify(SjcWeb.Guardian, token)
@@ -52,7 +52,7 @@ defmodule SjcWeb.UserControllerTest do
       %{"user" => user} =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> get(user_path(conn, :get_user, to_string(user.id)))
+        |> get(Routes.user_path(conn, :get_user, to_string(user.id)))
         |> json_response(200)
 
       assert Enum.all?(
@@ -65,28 +65,28 @@ defmodule SjcWeb.UserControllerTest do
       response =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> get(user_path(conn, :get_user, "999999999999999"))
+        |> get(Routes.user_path(conn, :get_user, "999999999999999"))
         |> json_response(404)
 
-      assert %{"error" => "not found"} = response
+      assert %{"error" => "Not Found"} = response
     end
 
     test "raises when id is not an integer or ID type", %{conn: conn, token: token} do
       assert_raise Ecto.Query.CastError, fn ->
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> get(user_path(conn, :get_user, "not an integer"))
+        |> get(Routes.user_path(conn, :get_user, "not an integer"))
       end
     end
   end
 
   describe "sign_in/2" do
     test "returns jwt when user exists", %{conn: conn, user_params: params} do
-      post(conn, user_path(conn, :create_user), user: params)
+      post(conn, Routes.user_path(conn, :create_user), user: params)
 
       %{"jwt" => token} =
         conn
-        |> post(user_path(conn, :sign_in), params)
+        |> post(Routes.user_path(conn, :sign_in), params)
         |> json_response(200)
 
       assert {:ok, _claims} = Guardian.decode_and_verify(SjcWeb.Guardian, token)
@@ -95,7 +95,7 @@ defmodule SjcWeb.UserControllerTest do
     test "returns error when user is invalid", %{conn: conn} do
       response =
         conn
-        |> post(user_path(conn, :sign_in), %{email: "invalid", password: "some password"})
+        |> post(Routes.user_path(conn, :sign_in), %{email: "invalid", password: "some password"})
         |> json_response(401)
 
       assert %{"error" => "unauthorized"} = response

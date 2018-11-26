@@ -13,29 +13,31 @@ defmodule SjcWeb.UserController do
 
     with {:ok, %User{} = user} <- Repo.insert(changeset),
          {:ok, token, _claims} <- encode_resource(user) do
-      json(conn, %{user: user, jwt: token})
+      render(conn, "create_user.json", %{user: user, jwt: token})
     else
       {:error, %Ecto.Changeset{} = _changeset} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{error: "there was a problem creating your account"})
+        |> render("create_user_changeset_error.json", %{
+          error: "there was a problem creating your account"
+        })
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{error: reason})
+        |> render("create_user_bad_req.json", %{error: reason})
     end
   end
 
   def sign_in(conn, %{"email" => email, "password" => password}) do
     case email_pass_auth(email, password) do
       {:ok, token, _claims} ->
-        json(conn, %{jwt: token})
+        render(conn, "sign_in.json", %{jwt: token})
 
       _ ->
         conn
         |> put_status(:unauthorized)
-        |> json(%{error: :unauthorized})
+        |> render("sign_in_unauthorized.json", %{error: :unauthorized})
     end
   end
 
@@ -59,12 +61,13 @@ defmodule SjcWeb.UserController do
       nil ->
         conn
         |> put_status(:not_found)
-        |> json(%{error: "not found"})
+        |> put_view(SjcWeb.ErrorView)
+        |> render("404.json", [])
 
       %User{} = user ->
         user_dropped = Map.drop(user, ~w(password password_confirmation password_hash)a)
 
-        json(conn, %{user: user_dropped})
+        render(conn, "get_user.json", %{user: user_dropped})
     end
   end
 

@@ -17,7 +17,7 @@ defmodule SjcWeb.QueueControllerTest do
       %{"status" => res} =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> post(queue_path(conn, :add_player), player: player, game: 3)
+        |> post(Routes.queue_path(conn, :add_player), player: player, game: 3)
         |> json_response(200)
 
       players = Queue.players(3)
@@ -33,7 +33,7 @@ defmodule SjcWeb.QueueControllerTest do
       response =
         conn
         |> put_req_header("authorization", "Bearer token")
-        |> post(queue_path(conn, :add_player), player: player, game: 2)
+        |> post(Routes.queue_path(conn, :add_player), player: player, game: 2)
         |> json_response(400)
 
       assert %{"error" => _error} = response

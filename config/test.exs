@@ -25,7 +25,6 @@ config :logger, level: :debug
 
 # Configure your database
 config :sjc, Sjc.Repo,
-  adapter: Ecto.Adapters.Postgres,
   username: "postgres",
   password: "postgres",
   database: "sjc_test",
