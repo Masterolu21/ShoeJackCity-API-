@@ -7,7 +7,7 @@ defmodule Sjc.QueueTest do
 
   setup do
     # This way we get a string keys.
-    player = :player |> build() |> Jason.encode!() |> Jason.decode!()
+    player = string_params_for(:player)
     day_str = Timex.now() |> Timex.day() |> to_string()
 
     {:ok, player: player, day: day_str}
@@ -34,6 +34,15 @@ defmodule Sjc.QueueTest do
       players = Queue.players(3)
 
       assert players == [player]
+    end
+
+    test "if player is in queue, removes them from existing game and adds them to another one", %{
+      player: player
+    } do
+      Queue.add(1, player)
+      "added" = Queue.add(2, player)
+
+      assert Queue.players(1) == []
     end
 
     test "does not add player if queue has reached maximum", %{player: player} do
@@ -71,7 +80,7 @@ defmodule Sjc.QueueTest do
 
   test "game gets created and adds all the players from the queue to it", %{day: day_str} do
     Enum.each(1..100, fn _ ->
-      player = :player |> build() |> Jason.encode!() |> Jason.decode!()
+      player = string_params_for(:player)
       Queue.add(1, player)
     end)
 

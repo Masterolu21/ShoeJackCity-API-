@@ -9,6 +9,8 @@ defmodule Sjc.Queue do
   Each game has the time it'll start and players on it.
   """
 
+  # TODO: QUEUE WILL ONLY ALLOW 1000 PLAYERS.
+
   use GenServer
 
   require Logger
@@ -101,8 +103,12 @@ defmodule Sjc.Queue do
         game_state =
           state
           |> Enum.reduce(%{}, fn {id, game}, acc ->
-            rej_opt = Enum.reject(game.players, &(&1["id"] == player["id"]))
-            players = put_in(game[:players], rej_opt)
+            players =
+              update_in(
+                game,
+                [:players],
+                &Enum.reject(&1, fn game_p -> game_p["id"] == player["id"] end)
+              )
 
             Map.put(acc, id, players)
           end)
@@ -127,7 +133,11 @@ defmodule Sjc.Queue do
   end
 
   def handle_call({:player_list, game}, _from, state) do
-    players = state |> Map.get(game) |> Map.get(:players)
+    players =
+      state
+      |> Map.get(game)
+      |> Map.get(:players)
+
     {:reply, players, state}
   end
 
