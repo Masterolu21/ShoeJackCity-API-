@@ -13,7 +13,7 @@ config :sjc, SjcWeb.Endpoint,
   check_origin: false,
   watchers: []
 
-config :sjc, game_intervals: [seconds: 10]
+config :sjc, game_intervals: [days: 10]
 
 config :sjc, SjcWeb.Guardian,
   secret_key: "QPpZ60CkjQfcXoBkFsgz1pmbi2fBQXs/cGDsp46Mqd1wnA8fOAXQSsftMxQsi9nl"
