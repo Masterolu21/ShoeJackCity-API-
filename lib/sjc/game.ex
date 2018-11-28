@@ -187,43 +187,6 @@ defmodule Sjc.Game do
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
   end
 
-  # # Adds player if it doesn't exist yet.
-  # def handle_call({:add_player, attrs}, _from, state) do
-  #   player_struct = struct(Player, attrs)
-  #   # Inventory MUST be a list, in the case it isn't a list we're just going to
-  #   # make it a list and flatten the result.
-  #   player_inventory =
-  #     [player_struct.inventory]
-  #     |> List.flatten()
-  #     |> Enum.map(&struct(Inventory, &1))
-
-  #   player = put_in(player_struct, [Access.key(:inventory)], player_inventory)
-  #   new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
-
-  #   # We only allow 99 as the amount of a single item per user in a game.
-  #   amounts_on_inventory =
-  #     [player.inventory]
-  #     |> List.flatten()
-  #     |> Enum.map(& &1.amount)
-
-  #   cond do
-  #     Enum.any?(state.players, &(&1.id == attrs.id)) ->
-  #       {:reply, {:error, :already_added}, state, timeout()}
-
-  #     length(player.inventory) > 200 ->
-  #       {:reply, {:error, :exceeded_inventory_limit}, state, timeout()}
-
-  #     Enum.any?(amounts_on_inventory, &(&1 > 99)) ->
-  #       {:reply, {:error, :exceeded_item_limit}, state, timeout()}
-
-  #     length(new_state.players) > 1_000 ->
-  #       {:reply, {:error, :max_length}, state, timeout()}
-
-  #     true ->
-  #       {:reply, {:ok, :added}, new_state, timeout()}
-  #   end
-  # end
-
   # When testing or when we don't want to automatically shift rounds we call this function.
   def handle_call(:shift_automatically, _from, state) do
     # If true, make it false, true otherwise.
