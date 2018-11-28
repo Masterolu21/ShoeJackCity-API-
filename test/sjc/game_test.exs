@@ -7,21 +7,19 @@ defmodule Sjc.GameTest do
   import Tesla.Mock
 
   alias Sjc.Supervisors.GameSupervisor
-  alias Sjc.Game.Inventory
   alias Sjc.Game
 
   setup do
     mock_global(fn env -> env end)
 
     player_attributes = build(:player)
-    inventory = build(:inventory)
     game = build(:game)
 
     {:ok, pid} = GameSupervisor.start_child(game.name)
 
     # Game.clean_game(game_name)
 
-    {:ok, player_attrs: player_attributes, inventory: inventory, pid: pid, name: game.name}
+    {:ok, player_attrs: player_attributes, pid: pid, name: game.name}
   end
 
   test "adds another round to the game", %{name: game_name} do
@@ -34,20 +32,12 @@ defmodule Sjc.GameTest do
   end
 
   test "creates a player struct correctly", %{player_attrs: attributes, name: game_name} do
-    assert {:ok, :added} = Game.add_player(game_name, attributes)
+    assert {:ok, :added} = Game.add_player(game_name, [attributes])
     assert length(Game.state(game_name).players) == 1
   end
 
-  test "returns {:error, already added} when player is a duplicate", %{
-    player_attrs: attributes,
-    name: game_name
-  } do
-    assert {:ok, :added} = Game.add_player(game_name, attributes)
-    assert {:error, :already_added} = Game.add_player(game_name, attributes)
-  end
-
   test "removes player from game by identifier", %{player_attrs: attributes, name: game_name} do
-    {:ok, :added} = Game.add_player(game_name, attributes)
+    {:ok, :added} = Game.add_player(game_name, [attributes])
 
     players_fn = fn -> length(Game.state(game_name).players) end
 
@@ -73,7 +63,7 @@ defmodule Sjc.GameTest do
   } do
     players = build_list(3, :player)
 
-    {:ok, :added} = Game.add_player(game_name, player1)
+    {:ok, :added} = Game.add_player(game_name, [player1])
 
     # We just add the whole list since so we don't loop through all of them,
     # otherwise we could have sticked with the previous solution of looping
@@ -102,15 +92,13 @@ defmodule Sjc.GameTest do
         "from" => p.id,
         "to" => pp.id,
         "type" => "damage",
-        "amount" => 4,
-        "id" => Enum.at(p.inventory, 0).item_id
+        "amount" => 4
       },
       %{
         "from" => pp.id,
         "to" => p.id,
         "type" => "damage",
-        "amount" => 12,
-        "id" => Enum.at(pp.inventory, 0).item_id
+        "amount" => 12
       }
     ]
 
@@ -143,8 +131,7 @@ defmodule Sjc.GameTest do
       %{
         "from" => player.id,
         "type" => "damage",
-        "amount" => 60,
-        "id" => Enum.at(player.inventory, 0).item_id
+        "amount" => 60
       }
     ]
 
@@ -155,14 +142,6 @@ defmodule Sjc.GameTest do
     Process.send(pid, :standby_phase, [:nosuspend])
 
     assert length(Game.state(game_name).players) == 1
-  end
-
-  test "allows only 1000 players per game", %{name: game_name} do
-    Game.shift_automatically(game_name)
-
-    Enum.each(1..1_000, fn _ -> Game.add_player(game_name, build(:player)) end)
-
-    assert {:error, :max_length} = Game.add_player(game_name, build(:player))
   end
 
   test "shields should be applied first and damage reduced", %{pid: pid, name: game_name} do
@@ -177,14 +156,12 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "damage",
-        "amount" => 40,
-        "id" => Enum.at(p.inventory, 0).item_id
+        "amount" => 40
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 14,
-        "id" => Enum.at(pp.inventory, 0).item_id
+        "amount" => 14
       }
     ]
 
@@ -215,20 +192,17 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "shield",
-        "amount" => 16,
-        "id" => Enum.at(p.inventory, 0).item_id
+        "amount" => 16
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 18,
-        "id" => Enum.at(pp.inventory, 0).item_id
+        "amount" => 18
       },
       %{
         "from" => ppp.id,
         "type" => "shield",
-        "amount" => 31,
-        "id" => Enum.at(ppp.inventory, 0).item_id
+        "amount" => 31
       }
     ]
 
@@ -256,20 +230,17 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "shield",
-        "amount" => 16,
-        "id" => Enum.at(p.inventory, 0).item_id
+        "amount" => 16
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 18,
-        "id" => Enum.at(pp.inventory, 0).item_id
+        "amount" => 18
       },
       %{
         "from" => ppp.id,
         "type" => "shield",
-        "amount" => 31,
-        "id" => Enum.at(ppp.inventory, 0).item_id
+        "amount" => 31
       }
     ]
 
@@ -306,9 +277,9 @@ defmodule Sjc.GameTest do
     Game.shift_automatically(game_name)
 
     players = [
-      %{id: 12, inventory: build(:inventory)},
-      %{id: 151, inventory: build(:inventory)},
-      %{id: 12, inventory: build(:inventory)}
+      %{id: 12},
+      %{id: 151},
+      %{id: 12}
     ]
 
     Game.add_player(game_name, players)
@@ -321,41 +292,35 @@ defmodule Sjc.GameTest do
   test "should create the user inventory when adding the player to a game", %{name: game_name} do
     Game.shift_automatically(game_name)
 
-    player = %{id: 123, inventory: %{item_id: 51, amount: 4}}
+    player = [%{id: 123}]
 
     Game.add_player(game_name, player)
 
     state = Game.state(game_name)
 
     assert Enum.all?(state.players, &Map.has_key?(&1, :__struct__))
-    assert Enum.at(state.players, 0).inventory == [%Inventory{item_id: 51, amount: 4}]
+    # assert Enum.at(state.players, 0).inventory == [%Inventory{item_id: 51, amount: 4}]
   end
 
+  @tag :only
   test "should create inventory struct when adding players from list", %{name: game_name} do
-    players = [
-      %{id: 12, inventory: %{item_id: 50, amount: 1}},
-      %{id: 141, inventory: %{item_id: 40, amount: 12}}
-    ]
+    players = build_pair(:player)
 
     Game.add_player(game_name, players)
 
     state = Game.state(game_name)
 
-    expected = [
-      [%Inventory{item_id: 50, amount: 1}],
-      [%Inventory{item_id: 40, amount: 12}]
-    ]
+    expected = Enum.map(players, & &1.inventory)
 
     assert Enum.map(state.players, & &1.inventory) == expected
   end
 
-  @tag :only
   test "removes used items when a round has passed", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
 
     player = build(:player)
 
-    Game.add_player(game_name, player)
+    Game.add_player(game_name, [player])
 
     action = [
       %{

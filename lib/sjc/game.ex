@@ -7,17 +7,15 @@ defmodule Sjc.Game do
 
   require Logger
 
+  alias Sjc.Repo
+  alias Sjc.Models.{User, User.Inventory}
   alias Sjc.Game.{Player, Inventory}
   alias Sjc.GameBackup
-  alias Sjc.HTTP
 
   # API
 
   ## TODO: STANDBY PHASE - APPLY STATUS EFFECTS / REMOVE DEAD PLAYERS / 20% CHANCE MINI WINDOW
   ## TODO: POINTS FOR DEFEATED PLAYERS: 10 * NUMBER OF ROUNDS LASTED
-
-  # TODO: Check what can stay in the process and what should be in the database
-  # we can pull a reference and just use the information from the database in the process
   def start_link(name) do
     state = %{
       round: %{
@@ -113,7 +111,6 @@ defmodule Sjc.Game do
 
     # TODO: DO A REQUEST TO THE RAILS ENDPOINT TO REMOVE ITEMS USED BY THE USER - ARRAY OR INDIVIDUALLY
     # TODO: EVALUATE IF THIS SHOULD BE DONE AT THE START OF THE ROUND OR WHEN IT'S FINISHING
-    HTTP.send_used_items(state.actions)
 
     # We send a signal to the channel because a round has just passed
     SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
@@ -180,60 +177,52 @@ defmodule Sjc.Game do
   # we're not going to reply back with an error, instead we're just going to remove the duplicate.
   def handle_call({:add_player, attributes}, _from, state) when is_list(attributes) do
     # We add both lists and remove duplicates by ID.
-    inc_players =
-      Enum.map(attributes, fn attr ->
-        single_struct = struct(Player, attr)
-
-        inventory =
-          [attr.inventory]
-          |> List.flatten()
-          |> Enum.map(&struct(Inventory, &1))
-
-        put_in(single_struct, [Access.key(:inventory)], inventory)
-      end)
-
-    players = Enum.uniq_by(state.players ++ inc_players, & &1.id)
+    players =
+      attributes
+      |> Enum.map(&struct(Player, &1))
+      |> Kernel.++(state.players)
+      |> Enum.uniq_by(& &1.id)
 
     # We're always going to reply the same unless the process crashes.
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
   end
 
-  # Adds player if it doesn't exist yet.
-  def handle_call({:add_player, attrs}, _from, state) do
-    player_struct = struct(Player, attrs)
-    # Inventory MUST be a list, in the case it isn't a list we're just going to
-    # make it a list and flatten the result.
-    player_inventory =
-      [player_struct.inventory]
-      |> List.flatten()
-      |> Enum.map(&struct(Inventory, &1))
+  # # Adds player if it doesn't exist yet.
+  # def handle_call({:add_player, attrs}, _from, state) do
+  #   player_struct = struct(Player, attrs)
+  #   # Inventory MUST be a list, in the case it isn't a list we're just going to
+  #   # make it a list and flatten the result.
+  #   player_inventory =
+  #     [player_struct.inventory]
+  #     |> List.flatten()
+  #     |> Enum.map(&struct(Inventory, &1))
 
-    player = put_in(player_struct, [Access.key(:inventory)], player_inventory)
-    new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
+  #   player = put_in(player_struct, [Access.key(:inventory)], player_inventory)
+  #   new_state = update_in(state, [:players], &List.insert_at(&1, -1, player))
 
-    # We only allow 99 as the amount of a single item per user in a game.
-    amounts_on_inventory =
-      [player.inventory]
-      |> List.flatten()
-      |> Enum.map(& &1.amount)
+  #   # We only allow 99 as the amount of a single item per user in a game.
+  #   amounts_on_inventory =
+  #     [player.inventory]
+  #     |> List.flatten()
+  #     |> Enum.map(& &1.amount)
 
-    cond do
-      Enum.any?(state.players, &(&1.id == attrs.id)) ->
-        {:reply, {:error, :already_added}, state, timeout()}
+  #   cond do
+  #     Enum.any?(state.players, &(&1.id == attrs.id)) ->
+  #       {:reply, {:error, :already_added}, state, timeout()}
 
-      length(player.inventory) > 200 ->
-        {:reply, {:error, :exceeded_inventory_limit}, state, timeout()}
+  #     length(player.inventory) > 200 ->
+  #       {:reply, {:error, :exceeded_inventory_limit}, state, timeout()}
 
-      Enum.any?(amounts_on_inventory, &(&1 > 99)) ->
-        {:reply, {:error, :exceeded_item_limit}, state, timeout()}
+  #     Enum.any?(amounts_on_inventory, &(&1 > 99)) ->
+  #       {:reply, {:error, :exceeded_item_limit}, state, timeout()}
 
-      length(new_state.players) > 1_000 ->
-        {:reply, {:error, :max_length}, state, timeout()}
+  #     length(new_state.players) > 1_000 ->
+  #       {:reply, {:error, :max_length}, state, timeout()}
 
-      true ->
-        {:reply, {:ok, :added}, new_state, timeout()}
-    end
-  end
+  #     true ->
+  #       {:reply, {:ok, :added}, new_state, timeout()}
+  #   end
+  # end
 
   # When testing or when we don't want to automatically shift rounds we call this function.
   def handle_call(:shift_automatically, _from, state) do
@@ -340,10 +329,9 @@ defmodule Sjc.Game do
       end
 
     update_in(players, [Access.at(index), Access.key(:inventory), Access.all()], fn inv ->
-      if inv.item_id == action["id"] do
-        Map.put(inv, :amount, inv.amount - 1)
-      else
-        inv
+      case inv.item_id == action["id"] do
+        true -> Map.put(inv, :amount, inv.amount - 1)
+        false -> inv
       end
     end)
   end
@@ -371,8 +359,6 @@ defmodule Sjc.Game do
 
             %{"player" => player.id, "points" => points_awarded, "rounds" => state.round.number}
           end)
-
-        HTTP.dead_players_points(payload)
     end
 
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call
@@ -388,7 +374,7 @@ defmodule Sjc.Game do
     pid
   end
 
-  # Timeout is just the time a GenServer (Lobby process) can stay alive without
+  # Timeout is just the time a GenServer (Game process) can stay alive without
   # receiving any messages, defaults to 1 hour.
   # 1 hour without receiving any messages = die.
   defp timeout do
