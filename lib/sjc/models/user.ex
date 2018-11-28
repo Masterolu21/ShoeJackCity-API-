@@ -7,11 +7,16 @@ defmodule Sjc.Models.User do
 
   import Ecto.Changeset
 
+  alias Sjc.Models.User.Inventory
+
   schema "users" do
-    field(:email, :string)
+    field(:email, :string, null: false)
     field(:password, :string, virtual: true)
     field(:password_confirmation, :string, virtual: true)
     field(:password_hash, :string)
+    field(:points, :integer, default: 0)
+
+    has_one(:inventory, Inventory)
 
     timestamps()
   end

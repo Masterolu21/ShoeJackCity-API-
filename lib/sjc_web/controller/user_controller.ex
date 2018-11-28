@@ -7,11 +7,10 @@ defmodule SjcWeb.UserController do
 
   alias Sjc.Repo
   alias Sjc.Models.User
+  alias Sjc.Models.Accounts
 
-  def create_user(conn, params) do
-    changeset = User.changeset(%User{}, params["user"])
-
-    with {:ok, %User{} = user} <- Repo.insert(changeset),
+  def create_user(conn, %{"user" => user_params}) do
+    with {:ok, %User{} = user} <- Accounts.create_user(%User{}, user_params),
          {:ok, token, _claims} <- encode_resource(user) do
       render(conn, "create_user.json", %{user: user, jwt: token})
     else

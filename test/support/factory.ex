@@ -21,7 +21,8 @@ defmodule Sjc.Factory do
   def inventory_factory do
     %{
       item_id: sequence(:id, &(&1 + Enum.random(1..10_000))),
-      amount: Enum.random(1..99)
+      amount: Enum.random(1..99),
+      multiplier: Enum.random(1..5)
     }
   end
 
