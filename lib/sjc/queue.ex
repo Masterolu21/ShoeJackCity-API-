@@ -9,8 +9,6 @@ defmodule Sjc.Queue do
   Each game has the time it'll start and players on it.
   """
 
-  # TODO: QUEUE WILL ONLY ALLOW 1000 PLAYERS.
-
   use GenServer
 
   require Logger
@@ -90,12 +88,20 @@ defmodule Sjc.Queue do
       |> Map.get(game)
       |> Map.get(:players)
 
+    inventory_amounts =
+      [player["inventory"]]
+      |> List.flatten()
+      |> Enum.map(& &1["amount"])
+
     cond do
       length(players_in_game) >= 1_000 ->
         {:reply, "maximum amount reached", state}
 
       Enum.any?(players_in_game, &(&1["id"] == player["id"])) ->
         {:reply, "already added", state}
+
+      Enum.any?(inventory_amounts, &(&1 > 99)) ->
+        {:reply, "exceeded item limit", state}
 
       true ->
         # This function will traverse all the games players and remove the players with the same ID as the incoming one.

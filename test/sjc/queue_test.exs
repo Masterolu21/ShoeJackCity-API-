@@ -90,4 +90,11 @@ defmodule Sjc.QueueTest do
 
     assert length(game.players) == 100
   end
+
+  test "queue only allows 99 of a single item on the inventory", %{player: player} do
+    item = %{"amount" => 100, "item_id" => 15_123, "multiplier" => 4}
+    updated_player = put_in(player, ["inventory"], [item | player["inventory"]])
+
+    assert "exceeded item limit" == Queue.add(2, updated_player)
+  end
 end
