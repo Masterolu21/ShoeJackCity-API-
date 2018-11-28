@@ -97,4 +97,15 @@ defmodule Sjc.QueueTest do
 
     assert "exceeded item limit" == Queue.add(2, updated_player)
   end
+
+  test "queue only allows 200 items in a single inventory", %{player: player} do
+    items =
+      Enum.map(1..201, fn id ->
+        %{"amount" => Enum.random(1..50), "item_id" => id, "multiplier" => 2}
+      end)
+
+    updated_player = put_in(player, ["inventory"], items ++ player["inventory"])
+
+    assert "exceeded inventory limit" == Queue.add(3, updated_player)
+  end
 end

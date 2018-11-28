@@ -103,6 +103,9 @@ defmodule Sjc.Queue do
       Enum.any?(inventory_amounts, &(&1 > 99)) ->
         {:reply, "exceeded item limit", state}
 
+      length(player["inventory"]) > 200 ->
+        {:reply, "exceeded inventory limit", state}
+
       true ->
         # This function will traverse all the games players and remove the players with the same ID as the incoming one.
         # Meaning that this will also work to remove from a game and add the player to another one.
