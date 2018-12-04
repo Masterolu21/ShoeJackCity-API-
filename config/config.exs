@@ -9,7 +9,7 @@ use Mix.Config
 config :sjc,
   ecto_repos: [Sjc.Repo],
   game_timeout: 3_600_000,
-  round_timeout: 60_000
+  round_timeout: 30_000
 
 config :sjc, SjcWeb.Guardian, issuer: :sjc
 config :phoenix, :json_library, Jason
