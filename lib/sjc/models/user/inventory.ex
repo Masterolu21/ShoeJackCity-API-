@@ -5,12 +5,12 @@ defmodule Sjc.Models.User.Inventory do
 
   import Ecto.Changeset
 
-  alias Sjc.Models.{User, Item}
+  alias Sjc.Models.{User, Item, InventoryItems}
 
   schema "inventories" do
     belongs_to(:user, User)
 
-    many_to_many(:items, Item, join_through: "inventory_items")
+    many_to_many(:items, Item, join_through: InventoryItems)
 
     timestamps()
   end

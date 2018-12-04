@@ -8,8 +8,8 @@ defmodule Sjc.Game do
   require Logger
 
   alias Sjc.Repo
-  alias Sjc.Models.{User, User.Inventory}
-  alias Sjc.Game.{Player, Inventory}
+  alias Sjc.Models.{User, Accounts}
+  alias Sjc.Game.{Player}
   alias Sjc.GameBackup
 
   # API
@@ -232,7 +232,7 @@ defmodule Sjc.Game do
         do_action(acc, action, player_index)
       end)
 
-    Process.send_after(get_pid(state.name), :standby_phase, 5_000)
+    Process.send_after(get_pid(state.name), :standby_phase, 2_000)
 
     {:noreply, put_in(state, [:players], updated_players), timeout()}
   end
@@ -252,8 +252,8 @@ defmodule Sjc.Game do
     end
   end
 
-  defp get_target(_ids, %{"type" => "shield"} = action) do
-    action["from"]
+  defp get_target(_ids, %{"type" => "shield", "from" => from}) do
+    from
   end
 
   defp do_action(players, %{"type" => "damage"} = action, index) when not is_nil(index) do
@@ -291,10 +291,21 @@ defmodule Sjc.Game do
         false -> arg_index
       end
 
-    update_in(players, [Access.at(index), Access.key(:inventory), Access.all()], fn inv ->
-      case inv.item_id == action["id"] do
-        true -> Map.put(inv, :amount, inv.amount - 1)
-        false -> inv
+    player = Enum.at(players, index)
+
+    user =
+      User
+      |> Repo.get(player.id)
+      |> Repo.preload(:inventory)
+
+    update_in(players, [Access.at(index), Access.key(:inventory), Access.all()], fn item ->
+      case item.id == action["id"] do
+        true ->
+          Accounts.remove_inventory_item_amount(user.inventory.id, item.id, 1)
+          Map.put(item, :amount, item.amount - 1)
+
+        false ->
+          item
       end
     end)
   end
@@ -322,6 +333,8 @@ defmodule Sjc.Game do
 
             %{"player" => player.id, "points" => points_awarded, "rounds" => state.round.number}
           end)
+
+        payload
     end
 
     # We schedule the round timeout here so the 'handle_cast/2' function doesn't call

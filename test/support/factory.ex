@@ -5,22 +5,18 @@ defmodule Sjc.Factory do
 
   use ExMachina.Ecto, repo: Sjc.Repo
 
-  alias Sjc.Models.User
+  alias Sjc.Models.{User, User.Inventory, Item, InventoryItems}
 
   def player_factory do
     %{
       id: sequence(:id, &(&1 + 1)),
       health_points: 50,
-      shield_points: 0,
-      accuracy: sequence(:accuracy, &(&1 + 17)),
-      luck: sequence(:luck, &(&1 + 8)),
-      inventory: [build(:inventory)]
+      inventory: [build(:player_inventory)]
     }
   end
 
-  def inventory_factory do
+  def player_inventory_factory do
     %{
-      item_id: sequence(:id, &(&1 + Enum.random(1..10_000))),
       amount: Enum.random(1..99),
       multiplier: Enum.random(1..5)
     }
@@ -37,6 +33,28 @@ defmodule Sjc.Factory do
       email: sequence(:email, &"email_#{&1}@gmail.com"),
       password: "some_generic_password",
       password_confirmation: "some_generic_password"
+    }
+  end
+
+  def inventory_factory do
+    %Inventory{
+      items: [build(:item)],
+      user: build(:user)
+    }
+  end
+
+  def item_factory do
+    %Item{
+      amount: Enum.random(1..20),
+      multiplier: Enum.random(1..10)
+    }
+  end
+
+  def inventory_items_factory do
+    %InventoryItems{
+      quantity: 0,
+      inventory: build(:inventory),
+      item: build(:item)
     }
   end
 end

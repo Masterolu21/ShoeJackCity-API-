@@ -7,7 +7,8 @@ defmodule Sjc.GameTest do
   import Tesla.Mock
 
   alias Sjc.Supervisors.GameSupervisor
-  alias Sjc.Game
+  alias Sjc.{Game, Repo}
+  alias Sjc.Models.{InventoryItems}
 
   setup do
     mock_global(fn env -> env end)
@@ -78,12 +79,11 @@ defmodule Sjc.GameTest do
     Game.shift_automatically(game_name)
 
     # This way we can test adding by a list and we have the IDS we need.
-    p = build(:player)
-    pp = build(:player)
-    players = [p, pp]
+    {item, p} = build_player_attrs()
+    {item2, pp} = build_player_attrs()
 
     # Manually send the signal
-    Game.add_player(game_name, players)
+    Game.add_player(game_name, [p, pp])
 
     players = Game.state(game_name).players
 
@@ -92,13 +92,15 @@ defmodule Sjc.GameTest do
         "from" => p.id,
         "to" => pp.id,
         "type" => "damage",
-        "amount" => 4
+        "amount" => 4,
+        "id" => item.id
       },
       %{
         "from" => pp.id,
         "to" => p.id,
         "type" => "damage",
-        "amount" => 12
+        "amount" => 12,
+        "id" => item2.id
       }
     ]
 
@@ -119,8 +121,8 @@ defmodule Sjc.GameTest do
 
   test "remove dead players", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
-    player = build(:player)
-    player_2 = build(:player)
+    {item, player} = build_player_attrs()
+    {_item, player_2} = build_player_attrs()
 
     Game.add_player(game_name, [player, player_2])
 
@@ -131,7 +133,8 @@ defmodule Sjc.GameTest do
       %{
         "from" => player.id,
         "type" => "damage",
-        "amount" => 60
+        "amount" => 60,
+        "id" => item.id
       }
     ]
 
@@ -146,8 +149,8 @@ defmodule Sjc.GameTest do
 
   test "shields should be applied first and damage reduced", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
-    p = build(:player)
-    pp = build(:player)
+    {item, p} = build_player_attrs()
+    {item2, pp} = build_player_attrs()
 
     Game.add_player(game_name, [p, pp])
 
@@ -156,12 +159,14 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "damage",
-        "amount" => 40
+        "amount" => 40,
+        "id" => item.id
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 14
+        "amount" => 14,
+        "id" => item2.id
       }
     ]
 
@@ -180,9 +185,9 @@ defmodule Sjc.GameTest do
 
   test "removes shields from every player alive", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
-    p = build(:player)
-    pp = build(:player)
-    ppp = build(:player)
+    {item, p} = build_player_attrs()
+    {item2, pp} = build_player_attrs()
+    {item3, ppp} = build_player_attrs()
 
     get_shields = fn -> Enum.map(Game.state(game_name).players, & &1.shield_points) end
 
@@ -192,17 +197,20 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "shield",
-        "amount" => 16
+        "amount" => 16,
+        "id" => item.id
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 18
+        "amount" => 18,
+        "id" => item2.id
       },
       %{
         "from" => ppp.id,
         "type" => "shield",
-        "amount" => 31
+        "amount" => 31,
+        "id" => item3.id
       }
     ]
 
@@ -220,9 +228,9 @@ defmodule Sjc.GameTest do
 
   test "should remove actions after the round", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
-    p = build(:player)
-    pp = build(:player)
-    ppp = build(:player)
+    {item, p} = build_player_attrs()
+    {item2, pp} = build_player_attrs()
+    {item3, ppp} = build_player_attrs()
 
     Game.add_player(game_name, [p, pp, ppp])
 
@@ -230,17 +238,20 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "shield",
-        "amount" => 16
+        "amount" => 16,
+        "id" => item.id
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 18
+        "amount" => 18,
+        "id" => item2.id
       },
       %{
         "from" => ppp.id,
         "type" => "shield",
-        "amount" => 31
+        "amount" => 31,
+        "id" => item3.id
       }
     ]
 
@@ -302,7 +313,6 @@ defmodule Sjc.GameTest do
     # assert Enum.at(state.players, 0).inventory == [%Inventory{item_id: 51, amount: 4}]
   end
 
-  @tag :only
   test "should create inventory struct when adding players from list", %{name: game_name} do
     players = build_pair(:player)
 
@@ -318,7 +328,7 @@ defmodule Sjc.GameTest do
   test "removes used items when a round has passed", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
 
-    player = build(:player)
+    {item, player} = build_player_attrs()
 
     Game.add_player(game_name, [player])
 
@@ -327,7 +337,7 @@ defmodule Sjc.GameTest do
         "from" => player.id,
         "type" => "shield",
         "amount" => 15,
-        "id" => Enum.at(player.inventory, 0).item_id
+        "id" => item.id
       }
     ]
 
@@ -350,5 +360,69 @@ defmodule Sjc.GameTest do
 
     assert Enum.at(player.inventory, 0).amount > curr_amount
     assert inv_amount - 1 == curr_amount
+  end
+
+  test "removes the used items from the database after actions have been applied", %{
+    pid: pid,
+    name: game_name
+  } do
+    Game.shift_automatically(game_name)
+
+    item = insert(:item)
+    user = insert(:user)
+    inventory1 = insert(:inventory, items: [item], user: user)
+
+    inv_items = insert(:inventory_items, inventory: inventory1, item: item)
+
+    user_2 = insert(:user)
+    inventory2 = insert(:inventory, items: [item], user: user_2)
+    inv_items2 = insert(:inventory_items, inventory: inventory2, item: item)
+
+    players_item = Map.take(item, ~w(id amount multiplier))
+
+    players_for_game =
+      Enum.map([user, user_2], fn player ->
+        %{
+          id: player.id,
+          inventory: players_item
+        }
+      end)
+
+    Game.add_player(game_name, players_for_game)
+
+    action = [
+      %{
+        "from" => user.id,
+        "type" => "shield",
+        "amount" => 34,
+        "id" => item.id
+      },
+      %{
+        "from" => user_2.id,
+        "type" => "damage",
+        "amount" => 29,
+        "id" => item.id
+      }
+    ]
+
+    Game.add_action(game_name, action)
+
+    Process.send(pid, :round_timeout, [:nosuspend])
+
+    inventory = Repo.get(InventoryItems, inv_items.id)
+    inventory2 = Repo.get(InventoryItems, inv_items2.id)
+
+    assert inventory.quantity < item.amount
+    assert inventory2.quantity < item.amount
+  end
+
+  defp build_player_attrs do
+    item = insert(:item)
+    user = insert(:user)
+    insert(:inventory, items: [item], user: user)
+
+    player = build(:player, inventory: [item])
+
+    {item, Map.put(player, :id, user.id)}
   end
 end

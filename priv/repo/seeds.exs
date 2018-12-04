@@ -10,13 +10,15 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-alias Sjc.Models.{User, Item, User.Inventory}
+alias Sjc.Models.{User, Item, User.Inventory, InventoryItems}
 alias Sjc.Repo
 
 item =
-  %Item{}
-  |> Item.changeset(%{amount: 24, multiplier: 1})
-  |> Repo.insert!()
+  Enum.each(1..100, fn num ->
+    %Item{}
+    |> Item.changeset(%{amount: num * 2, multiplier: num * 3})
+    |> Repo.insert!()
+  end)
 
 # User with Inventory
 user =
@@ -33,9 +35,8 @@ inventory =
   |> Inventory.changeset(%{user_id: user.id})
   |> Repo.insert!()
 
-# Update Inventory with the assoc.
-inventory
-|> Repo.preload(:items)
-|> Ecto.Changeset.change()
-|> Ecto.Changeset.put_assoc(:items, [item])
-|> Repo.update!()
+Enum.each(1..10, fn num ->
+  %InventoryItems{}
+  |> InventoryItems.changeset(%{item_id: num, inventory_id: inventory.id})
+  |> Repo.insert!()
+end)
