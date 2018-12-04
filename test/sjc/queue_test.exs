@@ -1,9 +1,11 @@
 defmodule Sjc.QueueTest do
   @moduledoc false
 
-  use Sjc.DataCase
+  use Sjc.DataCase, async: false
 
-  alias Sjc.{Queue, Game}
+  import ExUnit.CaptureLog
+
+  alias Sjc.{Queue}
 
   setup do
     # This way we get a string keys.
@@ -73,26 +75,13 @@ defmodule Sjc.QueueTest do
   end
 
   test "game is created automatically when time is reached", %{day: day_str} do
-    :timer.sleep(1_100)
-
-    assert Game.state("#{day_str}_1")
-  end
-
-  test "game gets created and adds all the players from the queue to it", %{day: day_str} do
-    Enum.each(1..100, fn _ ->
-      player = string_params_for(:player)
-      Queue.add(1, player)
-    end)
-
-    :timer.sleep(1_500)
-
-    game = Game.state("#{day_str}_1")
-
-    assert length(game.players) == 100
+    assert capture_log(fn ->
+             :timer.sleep(1_500)
+           end) =~ "[GAME CREATED] #{day_str}_1"
   end
 
   test "queue only allows 99 of a single item on the inventory", %{player: player} do
-    item = %{"amount" => 100, "item_id" => 15_123, "multiplier" => 4}
+    item = %{"amount" => 100, "id" => 15_123, "multiplier" => 4}
     updated_player = put_in(player, ["inventory"], [item | player["inventory"]])
 
     assert "exceeded item limit" == Queue.add(2, updated_player)
@@ -108,4 +97,25 @@ defmodule Sjc.QueueTest do
 
     assert "exceeded inventory limit" == Queue.add(3, updated_player)
   end
+
+  # defp build_player_attrs do
+  #   item = insert(:item)
+  #   user = insert(:user)
+  #   inventory = insert(:inventory, items: [item], user: user)
+  #   insert(:inventory_items, item: item, inventory: inventory)
+
+  #   player =
+  #     build(:player,
+  #       inventory: [%{id: item.id, amount: item.amount, multiplier: item.multiplier}]
+  #     )
+
+  #   inventory = Enum.map(player.inventory, &Map.take(&1, ~w(id amount multiplier)a))
+
+  #   %{
+  #     id: player.id,
+  #     inventory: inventory
+  #   }
+  #   |> Jason.encode!()
+  #   |> Jason.decode!()
+  # end
 end
