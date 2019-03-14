@@ -11,15 +11,20 @@ defmodule Sjc.Queue do
 
   use GenServer
 
+  import Ecto.Query, only: [from: 2]
+
   require Logger
 
-  alias Sjc.Game
+  alias Sjc.{Game, Repo}
   alias Sjc.Supervisors.GameSupervisor
+  alias Sjc.Models.User.Inventory
+  alias Sjc.Models.InventoryItems
 
-  @tz "America/Caracas"
+  @vsn 1
+  @tz "America/Chicago"
 
   def start_link do
-    GenServer.start_link(__MODULE__, populate_state(), name: :queue_sys)
+    GenServer.start_link(__MODULE__, populate_state(), name: :game_queue)
   end
 
   defp populate_state do
@@ -42,26 +47,26 @@ defmodule Sjc.Queue do
   end
 
   def clean do
-    GenServer.cast(:queue_sys, :clean)
+    GenServer.cast(:game_queue, :clean)
   end
 
   def add(game, %{"id" => _id} = player)
-      when is_integer(game) and game > 0 and game < 10 do
-    GenServer.call(:queue_sys, {:add_player, game, player})
+      when is_integer(game) and game >= 1 and game <= 10 do
+    GenServer.call(:game_queue, {:add_player, game, player})
   end
 
   def remove(game, player_id)
-      when is_integer(player_id) and is_integer(game) and game > 0 and game < 10 do
-    GenServer.call(:queue_sys, {:remove_player, game, player_id})
+      when is_integer(player_id) and is_integer(game) and game >= 1 and game <= 10 do
+    GenServer.call(:game_queue, {:remove_player, game, player_id})
   end
 
   def state do
-    GenServer.call(:queue_sys, :state)
+    GenServer.call(:game_queue, :state)
   end
 
   def players(game)
-      when is_integer(game) and game > 0 and game < 10 do
-    GenServer.call(:queue_sys, {:player_list, game})
+      when is_integer(game) and game >= 1 and game <= 10 do
+    GenServer.call(:game_queue, {:player_list, game})
   end
 
   def init(state) do
@@ -88,19 +93,27 @@ defmodule Sjc.Queue do
       |> Map.get(game)
       |> Map.get(:players)
 
-    inventory_amounts =
-      [player["inventory"]]
-      |> List.flatten()
-      |> Enum.map(& &1["amount"])
+    # TODO: Maybe check for a temporary inventory instead of database's.
+    user_inventory =
+      Inventory
+      |> Repo.get_by(user_id: player["id"])
+      |> Repo.preload([:items, :user])
+
+    items_ids = Enum.map(user_inventory.items, & &1.id)
+
+    user_amounts =
+      Repo.all(
+        from(i in InventoryItems,
+          where: i.inventory_id == ^user_inventory.id,
+          where: i.item_id in ^items_ids
+        )
+      )
 
     cond do
-      length(players_in_game) >= 1_000 ->
-        {:reply, "maximum amount reached", state}
-
       Enum.any?(players_in_game, &(&1["id"] == player["id"])) ->
         {:reply, "already added", state}
 
-      Enum.any?(inventory_amounts, &(&1 > 99)) ->
+      Enum.any?(user_amounts, &(&1.quantity > 99)) ->
         {:reply, "exceeded item limit", state}
 
       length(player["inventory"]) > 200 ->
@@ -112,12 +125,7 @@ defmodule Sjc.Queue do
         game_state =
           state
           |> Enum.reduce(%{}, fn {id, game}, acc ->
-            players =
-              update_in(
-                game,
-                [:players],
-                &Enum.reject(&1, fn game_p -> game_p["id"] == player["id"] end)
-              )
+            players = update_players_list(game, player)
 
             Map.put(acc, id, players)
           end)
@@ -153,6 +161,7 @@ defmodule Sjc.Queue do
   def handle_info(:check_times, state) do
     now = Timex.now()
     not_started_games = Enum.reject(state, fn {_id, game} -> game.started end)
+
     # Check if game time has been reached.
     games =
       Enum.reduce(not_started_games, %{}, fn {id, game}, acc ->
@@ -164,7 +173,7 @@ defmodule Sjc.Queue do
 
             GameSupervisor.start_child(name)
 
-            # Only here we're converting string keys to atoms to stick to the design of Game.
+            # Only here we're converting string keys to atoms to stick to the design of the Game module.
             # We are using string keys in queue because they come from Phoenix.
             players =
               game.players
@@ -190,5 +199,11 @@ defmodule Sjc.Queue do
     check_times()
 
     {:noreply, Map.merge(state, games)}
+  end
+
+  defp update_players_list(game, arg_player) do
+    players_list = Enum.reject(game.players, &(&1["id"] == arg_player["id"]))
+
+    put_in(game, [:players], players_list)
   end
 end

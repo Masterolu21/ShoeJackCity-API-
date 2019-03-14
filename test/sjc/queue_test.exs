@@ -4,15 +4,20 @@ defmodule Sjc.QueueTest do
   use Sjc.DataCase, async: false
 
   import ExUnit.CaptureLog
+  import Ecto.Query, only: [from: 2]
 
-  alias Sjc.{Queue}
+  alias Sjc.{Queue, Repo}
+  alias Sjc.Models.InventoryItems
 
   setup do
     # This way we get a string keys.
-    player = string_params_for(:player)
+    user = insert(:user)
+    items = insert_list(4, :item)
+    player = :player |> string_params_for() |> Map.put("id", user.id)
+    inventory = insert(:inventory, items: items, user: user)
     day_str = Timex.now() |> Timex.day() |> to_string()
 
-    {:ok, player: player, day: day_str}
+    {:ok, player: player, day: day_str, items: items, user: user, inventory: inventory}
   end
 
   setup do
@@ -46,16 +51,6 @@ defmodule Sjc.QueueTest do
 
       assert Queue.players(1) == []
     end
-
-    test "does not add player if queue has reached maximum", %{player: player} do
-      Enum.each(1..1_000, fn _ ->
-        player_attrs = :player |> build() |> Jason.encode!() |> Jason.decode!()
-
-        Queue.add(2, player_attrs)
-      end)
-
-      assert "maximum amount reached" = Queue.add(2, player)
-    end
   end
 
   describe "remove/2" do
@@ -80,11 +75,23 @@ defmodule Sjc.QueueTest do
            end) =~ "[GAME CREATED] #{day_str}_1"
   end
 
-  test "queue only allows 99 of a single item on the inventory", %{player: player} do
-    item = %{"amount" => 100, "id" => 15_123, "multiplier" => 4}
-    updated_player = put_in(player, ["inventory"], [item | player["inventory"]])
+  test "queue only allows 99 of a single item on the inventory", %{
+    player: player,
+    inventory: inventory,
+    items: items
+  } do
+    item = Enum.at(items, 0)
 
-    assert "exceeded item limit" == Queue.add(2, updated_player)
+    query =
+      from(i in InventoryItems,
+        where: i.inventory_id == ^inventory.id,
+        where: i.item_id == ^item.id,
+        update: [set: [quantity: 100]]
+      )
+
+    Repo.update_all(query, [])
+
+    assert "exceeded item limit" == Queue.add(2, player)
   end
 
   test "queue only allows 200 items in a single inventory", %{player: player} do
