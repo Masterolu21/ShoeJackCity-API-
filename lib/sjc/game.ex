@@ -7,10 +7,9 @@ defmodule Sjc.Game do
 
   require Logger
 
-  alias Sjc.Repo
-  alias Sjc.Models.{User, Accounts}
+  alias Sjc.{Repo, GameBackup}
+  alias Sjc.Models.{User, Accounts, Item}
   alias Sjc.Game.{Player}
-  alias Sjc.GameBackup
 
   # API
 
@@ -30,10 +29,6 @@ defmodule Sjc.Game do
     }
 
     GenServer.start_link(__MODULE__, state, name: via(name))
-  end
-
-  def next_round(name) do
-    GenServer.cast(via(name), :next_round)
   end
 
   def remove_player(name, identifier) do
@@ -97,34 +92,13 @@ defmodule Sjc.Game do
   def terminate(:normal, _state), do: :ok
   def terminate(_reason, state), do: GameBackup.save_state(state.name, state)
 
-  def handle_cast(:next_round, %{round: %{number: round_num}, name: name} = state) do
-    new_round = round_num + 1
-
-    # TODO: SEND REQUEST TO RAILS ENDPOINT WITH THE ACTIONS USED A.K.A. ITEMS
-
-    new_state =
-      state
-      |> put_in([:round, :number], new_round)
-      |> put_in([:time_of_round], Timex.now())
-      |> put_in([:actions], [])
-      |> update_in([:players, Access.all()], &Map.put(&1, :shield_points, 0))
-
-    # TODO: DO A REQUEST TO THE RAILS ENDPOINT TO REMOVE ITEMS USED BY THE USER - ARRAY OR INDIVIDUALLY
-    # TODO: EVALUATE IF THIS SHOULD BE DONE AT THE START OF THE ROUND OR WHEN IT'S FINISHING
-
-    # We send a signal to the channel because a round has just passed
-    SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
-
-    {:noreply, new_state, timeout()}
-  end
-
   def handle_cast({:remove_player, identifier}, state) do
     players = Enum.reject(state.players, &(&1.id == identifier))
 
     {:noreply, put_in(state.players, players), timeout()}
   end
 
-  # 'action' / 'actions' should come in a map with some keys, :from, :amount, :type
+  # 'actions' should come in a map with some keys, :from, :amount, :type
   # where :type should be one of "shield", "damage".
   def handle_cast({:add_action, actions}, %{players: players} = state) when is_list(actions) do
     ids = Enum.map(players, & &1.id)
@@ -133,8 +107,13 @@ defmodule Sjc.Game do
     new_actions =
       Enum.reduce(actions, [], fn action, acc ->
         case action["from"] in ids do
-          true -> acc ++ [action]
-          false -> acc
+          true ->
+            %Item{damage: damage} = Repo.get(Item, action["id"])
+
+            acc ++ [Map.put(action, "amount", damage)]
+
+          false ->
+            acc
         end
       end)
 
@@ -146,11 +125,15 @@ defmodule Sjc.Game do
   def handle_cast({:add_action, action}, %{players: players} = state) when is_map(action) do
     # TODO: CHECK IF ANY VALIDATION NEEDS TO BE DONE HERE
     ids = Enum.map(players, & &1.id)
-    new_state = put_in(state, [:actions], [action] ++ state.actions)
+    %Item{damage: damage} = Repo.get(Item, action["id"])
+    new_state = put_in(state, [:actions], state.actions ++ [Map.put(action, "amount", damage)])
 
     case action["from"] in ids do
-      true -> {:noreply, new_state, timeout()}
-      false -> {:noreply, new_state, timeout()}
+      true ->
+        {:noreply, new_state, timeout()}
+
+      false ->
+        {:noreply, state, timeout()}
     end
   end
 
@@ -187,9 +170,8 @@ defmodule Sjc.Game do
     {:reply, {:ok, :added}, put_in(state.players, players), timeout()}
   end
 
-  # When testing or when we don't want to automatically shift rounds we call this function.
+  # When testing or when we don't want to automatically shift rounds.
   def handle_call(:shift_automatically, _from, state) do
-    # If true, make it false, true otherwise.
     will_shift? = !state.shift_automatically
 
     {:reply, will_shift?, %{state | shift_automatically: will_shift?}, timeout()}
@@ -212,7 +194,7 @@ defmodule Sjc.Game do
   end
 
   def handle_info(:round_timeout, %{players: players, actions: actions} = state) do
-    # @dev We get the ids of the players that are in the game, we remove the id of the
+    # We get the ids of the players that are in the game, we remove the id of the
     # person from the action for bombs and use the same id for shields
 
     shields = Enum.filter(actions, &(&1["type"] == "shield"))
@@ -242,6 +224,26 @@ defmodule Sjc.Game do
     remove_dead_players(state)
   end
 
+  def handle_info(:next_round, %{round: %{number: round_num}, name: name} = state) do
+    new_round = round_num + 1
+
+    new_state =
+      state
+      |> put_in([:round, :number], new_round)
+      |> put_in([:time_of_round], Timex.now())
+      |> put_in([:actions], [])
+      |> update_in([:players, Access.all()], &Map.put(&1, :shield_points, 0))
+
+    # TODO: EVALUATE IF THIS SHOULD BE DONE AT THE START OF THE ROUND OR WHEN IT'S FINISHING
+
+    # We send a signal to the channel because a round has just passed
+    SjcWeb.Endpoint.broadcast("game:" <> name, "next_round", %{number: new_round})
+
+    {:noreply, new_state, timeout()}
+  end
+
+  defp get_target(_ids, %{"type" => "shield", "from" => from}), do: from
+
   defp get_target(ids, %{"type" => "damage"} = action) do
     # We need to remove the user who sent the action in this case.
     targets = Enum.reject(ids, &(&1 == action["from"]))
@@ -250,10 +252,6 @@ defmodule Sjc.Game do
       true -> 0
       false -> Enum.random(targets)
     end
-  end
-
-  defp get_target(_ids, %{"type" => "shield", "from" => from}) do
-    from
   end
 
   defp do_action(players, %{"type" => "damage"} = action, index) when not is_nil(index) do
@@ -283,7 +281,7 @@ defmodule Sjc.Game do
   defp remove_used_item(players, action, arg_index) do
     # Since we are sending the index of the target instead of the player who sent the action
     # here we're checking if the action type is damage, in that case we need to get the
-    # index of the player sent the action to remove the item from the inventory
+    # index of the player who sent the action to remove the item from the inventory
     # otherwise we just stick with the index of the person who sent the action (shield) which would be correct in that case.
     index =
       case action["type"] == "damage" do
@@ -302,7 +300,7 @@ defmodule Sjc.Game do
       case item.id == action["id"] do
         true ->
           Accounts.remove_inventory_item_amount(user.inventory.id, item.id, 1)
-          Map.put(item, :amount, item.amount - 1)
+          item
 
         false ->
           item
@@ -342,7 +340,10 @@ defmodule Sjc.Game do
     if state.shift_automatically, do: schedule_round_timeout(state.name)
 
     # TODO: MAYBE ADD A LITTLE DELAY BEFORE TRIGGERING THE NEXT ROUND
-    handle_cast(:next_round, put_in(state, [:players], new_players))
+    # handle_cast(:next_round, put_in(state, [:players], new_players))
+    Process.send_after(self(), :next_round, 500)
+
+    {:noreply, put_in(state, [:players], new_players), timeout()}
   end
 
   def get_pid(name) do

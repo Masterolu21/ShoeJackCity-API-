@@ -9,6 +9,7 @@ defmodule Sjc.GameTest do
   alias Sjc.Supervisors.GameSupervisor
   alias Sjc.{Game, Repo}
   alias Sjc.Models.{InventoryItems}
+  alias Sjc.Models.User.Inventory
 
   setup do
     mock_global(fn env -> env end)
@@ -18,18 +19,9 @@ defmodule Sjc.GameTest do
 
     {:ok, pid} = GameSupervisor.start_child(game.name)
 
-    # Game.clean_game(game_name)
+    :sys.get_state(pid)
 
     {:ok, player_attrs: player_attributes, pid: pid, name: game.name}
-  end
-
-  test "adds another round to the game", %{name: game_name} do
-    # True by default, changes it to false so it doesn't call next round automatically.
-    Game.shift_automatically(game_name)
-
-    Game.next_round(game_name)
-
-    assert Game.state(game_name).round.number == 2
   end
 
   test "creates a player struct correctly", %{player_attrs: attributes, name: game_name} do
@@ -50,10 +42,6 @@ defmodule Sjc.GameTest do
     assert players_fn.() == 0
   end
 
-  test "automatically shifts round when a specified amount of time has passed", %{name: game_name} do
-    assert Game.state(game_name).round.number >= 1
-  end
-
   test "shows the elapsed time", %{name: game_name} do
     assert Timex.is_valid?(Game.state(game_name).time_of_round)
   end
@@ -62,17 +50,19 @@ defmodule Sjc.GameTest do
     player_attrs: player1,
     name: game_name
   } do
-    players = build_list(3, :player)
+    player = %{player1 | id: 2}
 
-    {:ok, :added} = Game.add_player(game_name, [player1])
+    players =
+      2
+      |> build_list(:player)
+      |> List.insert_at(-1, player)
 
-    # We just add the whole list since so we don't loop through all of them,
-    # otherwise we could have sticked with the previous solution of looping
-    # through each player's attributes.
+    {:ok, :added} = Game.add_player(game_name, [player])
+
+    # We just add the whole list so we don't loop through all of them.
     {:ok, :added} = Game.add_player(game_name, players)
 
-    # We should only have 3 players since id 1 was already added
-    assert length(Game.state(game_name).players) == 4
+    assert length(Game.state(game_name).players) == 3
   end
 
   test "should run given actions", %{pid: pid, name: game_name} do
@@ -92,14 +82,12 @@ defmodule Sjc.GameTest do
         "from" => p.id,
         "to" => pp.id,
         "type" => "damage",
-        "amount" => 4,
         "id" => item.id
       },
       %{
         "from" => pp.id,
         "to" => p.id,
         "type" => "damage",
-        "amount" => 12,
         "id" => item2.id
       }
     ]
@@ -116,7 +104,7 @@ defmodule Sjc.GameTest do
 
     hps = Enum.map(updated_players, & &1.health_points)
 
-    assert 46 in hps && 38 in hps
+    assert Enum.all?(hps, &(&1 == 30))
   end
 
   test "remove dead players", %{pid: pid, name: game_name} do
@@ -126,14 +114,19 @@ defmodule Sjc.GameTest do
 
     Game.add_player(game_name, [player, player_2])
 
+    :sys.replace_state(pid, fn state ->
+      updated_players = Enum.map(state.players, &Map.put(&1, :health_points, 10))
+
+      put_in(state, [:players], updated_players)
+    end)
+
     assert length(Game.state(game_name).players) == 2
 
-    # Player 1 kills player 2
+    # Player 1 eliminates player 2.
     action = [
       %{
         "from" => player.id,
         "type" => "damage",
-        "amount" => 60,
         "id" => item.id
       }
     ]
@@ -159,13 +152,11 @@ defmodule Sjc.GameTest do
       %{
         "from" => p.id,
         "type" => "damage",
-        "amount" => 40,
         "id" => item.id
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 14,
         "id" => item2.id
       }
     ]
@@ -180,7 +171,7 @@ defmodule Sjc.GameTest do
     hps = Enum.map(players, & &1.health_points)
 
     # Hp of attacked user is 15.6, we're rounding to the nearest integer = 16
-    assert 16 in hps
+    assert 34 in hps
   end
 
   test "removes shields from every player alive", %{pid: pid, name: game_name} do
@@ -193,41 +184,49 @@ defmodule Sjc.GameTest do
 
     Game.add_player(game_name, [p, pp, ppp])
 
+    # * All players have 0 shield points at start. We must explicitly change this.
+    :sys.replace_state(pid, fn state ->
+      updated_players = Enum.map(state.players, &Map.put(&1, :shield_points, 50))
+
+      put_in(state, [:players], updated_players)
+    end)
+
     actions = [
       %{
         "from" => p.id,
         "type" => "shield",
-        "amount" => 16,
         "id" => item.id
       },
       %{
         "from" => pp.id,
         "type" => "shield",
-        "amount" => 18,
         "id" => item2.id
       },
       %{
         "from" => ppp.id,
         "type" => "shield",
-        "amount" => 31,
         "id" => item3.id
       }
     ]
 
     Game.add_action(game_name, actions)
 
+    # * items should be applied.
     Process.send(pid, :round_timeout, [:nosuspend])
 
-    assert get_shields.() == [16, 18, 31]
+    assert get_shields.() == [70, 70, 70]
 
     Process.send(pid, :standby_phase, [:nosuspend])
 
-    # Shields should be removed at this point
+    :timer.sleep(500)
+
+    # * shields should be removed at this point
     assert get_shields.() == [0, 0, 0]
   end
 
   test "should remove actions after the round", %{pid: pid, name: game_name} do
     Game.shift_automatically(game_name)
+
     {item, p} = build_player_attrs()
     {item2, pp} = build_player_attrs()
     {item3, ppp} = build_player_attrs()
@@ -264,7 +263,9 @@ defmodule Sjc.GameTest do
     Process.send(pid, :round_timeout, [:nosuspend])
     Process.send(pid, :standby_phase, [:nosuspend])
 
-    assert length(game_state.().actions) == 0
+    :timer.sleep(1000)
+
+    assert game_state.().actions == []
   end
 
   test "should not add actions if the user isn't in the game", %{name: game_name} do
@@ -281,7 +282,7 @@ defmodule Sjc.GameTest do
 
     Game.add_action(game_name, action)
 
-    assert length(Game.state(game_name).actions) == 0
+    assert Game.state(game_name).actions == []
   end
 
   test "convert all players to struct when adding from a list", %{name: game_name} do
@@ -310,7 +311,6 @@ defmodule Sjc.GameTest do
     state = Game.state(game_name)
 
     assert Enum.all?(state.players, &Map.has_key?(&1, :__struct__))
-    # assert Enum.at(state.players, 0).inventory == [%Inventory{item_id: 51, amount: 4}]
   end
 
   test "should create inventory struct when adding players from list", %{name: game_name} do
@@ -343,86 +343,44 @@ defmodule Sjc.GameTest do
 
     Game.add_action(game_name, action)
 
+    inventory = Repo.one(from(i in Inventory, where: i.user_id == ^player.id))
+    used_item = get_inventory_item(inventory.id, item.id)
+
+    used_item |> Ecto.Changeset.change(%{quantity: 5}) |> Repo.update!()
+
     # Used items are removed on :round_timeout
     Process.send(pid, :round_timeout, [:nosuspend])
 
     state = Game.state(game_name)
 
     # There's only one player in this game.
-    curr_amount =
+    curr_item =
       state.players
       |> Enum.at(0)
       |> Map.get(:inventory)
       |> Enum.at(0)
-      |> Map.get(:amount)
 
-    inv_amount = Enum.at(player.inventory, 0).amount
+    updated_item = get_inventory_item(inventory.id, curr_item.id)
 
-    assert Enum.at(player.inventory, 0).amount > curr_amount
-    assert inv_amount - 1 == curr_amount
-  end
-
-  test "removes the used items from the database after actions have been applied", %{
-    pid: pid,
-    name: game_name
-  } do
-    Game.shift_automatically(game_name)
-
-    item = insert(:item)
-    user = insert(:user)
-    inventory1 = insert(:inventory, items: [item], user: user)
-
-    inv_items = insert(:inventory_items, inventory: inventory1, item: item)
-
-    user_2 = insert(:user)
-    inventory2 = insert(:inventory, items: [item], user: user_2)
-    inv_items2 = insert(:inventory_items, inventory: inventory2, item: item)
-
-    players_item = Map.take(item, ~w(id amount multiplier))
-
-    players_for_game =
-      Enum.map([user, user_2], fn player ->
-        %{
-          id: player.id,
-          inventory: players_item
-        }
-      end)
-
-    Game.add_player(game_name, players_for_game)
-
-    action = [
-      %{
-        "from" => user.id,
-        "type" => "shield",
-        "amount" => 34,
-        "id" => item.id
-      },
-      %{
-        "from" => user_2.id,
-        "type" => "damage",
-        "amount" => 29,
-        "id" => item.id
-      }
-    ]
-
-    Game.add_action(game_name, action)
-
-    Process.send(pid, :round_timeout, [:nosuspend])
-
-    inventory = Repo.get(InventoryItems, inv_items.id)
-    inventory2 = Repo.get(InventoryItems, inv_items2.id)
-
-    assert inventory.quantity < item.amount
-    assert inventory2.quantity < item.amount
+    assert updated_item.quantity == 4
   end
 
   defp build_player_attrs do
     item = insert(:item)
     user = insert(:user)
-    insert(:inventory, items: [item], user: user)
-
     player = build(:player, inventory: [item])
 
+    insert(:inventory, items: [item], user: user)
+
     {item, Map.put(player, :id, user.id)}
+  end
+
+  defp get_inventory_item(inventory_id, item_id) do
+    Repo.one(
+      from(i in InventoryItems,
+        where: i.inventory_id == ^inventory_id,
+        where: i.item_id == ^item_id
+      )
+    )
   end
 end
