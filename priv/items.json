@@ -1,0 +1,148 @@
+{
+  "bombs": [
+    {
+      "name": "SJC Bomb",
+      "damage": 100,
+      "effect": null,
+      "chance": 0,
+      "mpc": 40,
+      "req": null
+    },
+    {
+      "name": "Big Bomb",
+      "damage": 150,
+      "effect": null,
+      "chance": 0,
+      "mpc": 60,
+      "req": "1500 PP"
+    },
+    {
+      "name": "Giga Bomb",
+      "damage": 200,
+      "effect": null,
+      "chance": 0,
+      "mpc": 100,
+      "req": "Big Bomb + 3000 PP"
+    },
+    {
+      "name": "Life Bomb",
+      "damage": null,
+      "effect": null,
+      "chance": 0,
+      "mpc": 150,
+      "req": "5000 PP"
+    },
+    {
+      "name": "Poison Bomb",
+      "damage": 40,
+      "effect": "poison",
+      "chance": 10,
+      "mpc": 25,
+      "req": null
+    },
+    {
+      "name": "Heat Bomb",
+      "damage": 40,
+      "effect": "burn",
+      "chance": 10,
+      "mpc": 25,
+      "req": null
+    },
+    {
+      "name": "Freeze Bomb",
+      "damage": 40,
+      "effect": "freeze",
+      "chance": 10,
+      "mpc": 25,
+      "req": null
+    },
+    {
+      "name": "Flash Bomb",
+      "damage": 40,
+      "effect": "confusion",
+      "chance": 10,
+      "mpc": 25,
+      "req": null
+    },
+    {
+      "name": "Nuke",
+      "damage": 2500,
+      "effect": null,
+      "chance": 0,
+      "mpc": 800,
+      "req": null
+    }
+  ],
+  "shields": [
+    {
+      "name": "SJC Shield",
+      "reduce": 50,
+      "effect": null,
+      "chance": 0,
+      "mpc": 60,
+      "req": null
+    },
+    {
+      "name": "Big Shield",
+      "reduce": 60,
+      "effect": null,
+      "chance": 0,
+      "mpc": 80,
+      "req": "1500 PP"
+    },
+    {
+      "name": "Giga Shield",
+      "reduce": 80,
+      "effect": null,
+      "chance": 0,
+      "mpc": 120,
+      "req": "3000 PP"
+    },
+    {
+      "name": "Platinum Shield",
+      "reduce": 100,
+      "effect": "removes status",
+      "chance": 100,
+      "mpc": 200,
+      "req": "5000 PP"
+    },
+    {
+      "name": "Energy Shield",
+      "reduce": 100,
+      "effect": "half dmg received",
+      "chance": 100,
+      "mpc": 800,
+      "req": "8000 PP"
+    }
+  ],
+  "heal": [
+    {
+      "name": "Antidote",
+      "effect": "poison",
+      "chance": 100,
+      "mpc": 40,
+      "req": null
+    },
+    {
+      "name": "Red Pill",
+      "effect": "burn",
+      "chance": 100,
+      "mpc": 40,
+      "req": null
+    },
+    {
+      "name": "Blue Pill",
+      "effect": "freeze",
+      "chance": 100,
+      "mpc": 40,
+      "req": null
+    },
+    {
+      "name": "Yellow Pill",
+      "effect": "confusion",
+      "chance": 100,
+      "mpc": 40,
+      "req": null
+    }
+  ]
+}
