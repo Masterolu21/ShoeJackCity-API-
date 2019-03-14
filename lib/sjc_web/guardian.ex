@@ -27,7 +27,6 @@ defmodule SjcWeb.Guardian do
         {:error, :not_found}
 
       user ->
-        IO.inspect(user)
         {:ok, user}
     end
   end
