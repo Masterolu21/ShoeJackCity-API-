@@ -3,8 +3,13 @@ defmodule Sjc.Repo.Migrations.CreateItemsTable do
 
   def change do
     create table(:items) do
-      add(:amount, :integer)
-      add(:multiplier, :integer)
+      add(:name, :string)
+      add(:damage, :integer)
+      add(:reduce, :integer)
+      add(:effect, :string)
+      add(:chance, :integer)
+      add(:mpc, :integer)
+      add(:prereq, :string)
 
       timestamps()
     end

@@ -8,8 +8,13 @@ defmodule Sjc.Models.Item do
   alias Sjc.Models.{User.Inventory, InventoryItems}
 
   schema "items" do
-    field(:amount, :integer)
-    field(:multiplier, :integer)
+    field(:name, :string)
+    field(:damage, :integer)
+    field(:reduce, :integer)
+    field(:effect, :string)
+    field(:chance, :integer)
+    field(:mpc, :integer)
+    field(:prereq, :string)
 
     many_to_many(:inventories, Inventory, join_through: InventoryItems)
 
@@ -18,7 +23,6 @@ defmodule Sjc.Models.Item do
 
   def changeset(%__MODULE__{} = item, params \\ %{}) do
     item
-    |> cast(params, [:amount, :multiplier])
-    |> validate_required([:amount, :multiplier])
+    |> cast(params, ~w(name damage effect chance mpc prereq)a)
   end
 end

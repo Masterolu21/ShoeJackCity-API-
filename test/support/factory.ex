@@ -17,14 +17,25 @@ defmodule Sjc.Factory do
 
   def player_inventory_factory do
     %{
-      amount: Enum.random(1..99),
-      multiplier: Enum.random(1..5)
+      name: "item name",
+      damage: Enum.random(1..100),
+      reduce: Enum.random(1..100),
+      effect: "",
+      chance: Enum.random(1..100),
+      mpc: Enum.random(1..100),
+      prereq: ""
     }
   end
 
   def game_factory do
+    name =
+      10
+      |> :crypto.strong_rand_bytes()
+      |> Base.url_encode64()
+      |> binary_part(0, 10)
+
     %{
-      name: sequence(:name, &"game_#{&1}")
+      name: name
     }
   end
 
@@ -45,14 +56,19 @@ defmodule Sjc.Factory do
 
   def item_factory do
     %Item{
-      amount: Enum.random(1..20),
-      multiplier: Enum.random(1..10)
+      name: "item name",
+      damage: 20,
+      reduce: Enum.random(1..100),
+      effect: "",
+      chance: Enum.random(1..100),
+      mpc: Enum.random(1..100),
+      prereq: ""
     }
   end
 
   def inventory_items_factory do
     %InventoryItems{
-      quantity: 0,
+      quantity: 20,
       inventory: build(:inventory),
       item: build(:item)
     }
