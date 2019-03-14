@@ -5,7 +5,7 @@ defmodule Sjc.Game.Player do
 
   @enforce_keys [:id]
   defstruct id: 0,
-            health_points: 100,
+            health_points: 2_000,
             shield_points: 0,
             accuracy: 0,
             luck: 0,
